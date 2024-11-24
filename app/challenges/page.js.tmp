@@ -1,0 +1,27 @@
+import ChallengesClient from '@/components/ChallengesClient';
+import { headers } from 'next/headers';
+
+export const dynamic = 'force-dynamic';
+
+export default async function ChallengesPage() {
+  const protocol = headers().get('x-forwarded-proto') || 'http';
+  const host = headers().get('host');
+  const baseUrl = `${protocol}://${host}`;
+
+  // Fetch challenges from our API route
+  const res = await fetch(`${baseUrl}/api/challenges`, {
+    cache: 'no-store'
+  });
+  
+  const challenges = await res.json();
+
+  // Serialize the challenges
+  const serializedChallenges = challenges.map(challenge => ({
+    ...challenge,
+    _id: challenge._id.toString(),
+    createdAt: challenge.createdAt ? new Date(challenge.createdAt).toISOString() : null,
+    updatedAt: challenge.updatedAt ? new Date(challenge.updatedAt).toISOString() : null
+  }));
+
+  return <ChallengesClient initialChallenges={serializedChallenges} />;
+}

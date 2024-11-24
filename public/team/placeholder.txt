@@ -1,0 +1,12 @@
+Add team member images here with the following names:
+- president.jpg
+- member1.jpg
+- member2.jpg
+- member3.jpg
+- member4.jpg
+- member5.jpg
+- member6.jpg
+- member7.jpg
+- member8.jpg
+
+Images should be square format (1:1 aspect ratio) and at least 400x400 pixels for best quality.
