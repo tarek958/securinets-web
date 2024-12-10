@@ -6,6 +6,7 @@ import { useTheme } from './ThemeProvider';
 import Leaderboard from './Leaderboard';
 import { io } from 'socket.io-client';
 import ChallengeModal from './ChallengeModal';
+import toast, { Toaster } from 'react-hot-toast';
 import '../styles/hacking-effects.css';
 
 const categories = ['All', 'Web', 'Pwn', 'Reverse', 'Crypto', 'Forensics', 'Misc'];
@@ -26,28 +27,117 @@ export default function ChallengesClient({ initialChallenges }) {
   const [submitSuccess, setSubmitSuccess] = useState(null);
 
   useEffect(() => {
-    socket = io('/', {
-      path: '/api/socket',
-    });
+    // Ensure socket is only initialized once
+    if (!socket) {
+      try {
+        console.log('Initializing socket connection...');
+        console.log('Current window location:', window.location);
+        
+        socket = io(window.location.origin, {
+          path: '/api/socket',
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+        });
 
-    socket.on('connect_error', (err) => {
-      console.error('Socket connection error:', err);
-    });
+        socket.on('connect', () => {
+          console.log('Socket connected successfully:', socket.id);
+          console.log('Socket connected to:', socket.io.uri);
+        });
 
-    socket.on('challengeUpdate', (updatedChallenge) => {
-      setChallenges(prevChallenges => 
-        prevChallenges.map(challenge => 
-          challenge._id === updatedChallenge._id ? updatedChallenge : challenge
-        )
-      );
-    });
+        socket.on('connect_error', (err) => {
+          console.error('Socket connection error:', err);
+          console.error('Error details:', {
+            message: err.message,
+            name: err.name,
+            stack: err.stack
+          });
+        });
 
+        socket.on('disconnect', (reason) => {
+          console.warn('Socket disconnected:', reason);
+        });
+
+        socket.on('challengeUpdate', (updatedChallenge) => {
+          console.log('Received challenge update:', updatedChallenge);
+          setChallenges(prevChallenges => 
+            prevChallenges.map(challenge => 
+              challenge._id === updatedChallenge._id ? updatedChallenge : challenge
+            )
+          );
+        });
+
+        // Handle new challenge notifications
+        socket.on('challengeAdded', ({ message, challenge }) => {
+          console.log('Received new challenge notification:', { message, challenge });
+          
+          // Add the new challenge to the list
+          setChallenges(prev => [challenge, ...prev]);
+
+          // Show browser notification if permission is granted
+          if (Notification.permission === 'granted') {
+            console.log('Showing browser notification');
+            new Notification('New Challenge Available!', {
+              body: `${challenge.title} (${challenge.category}) - ${challenge.points} points`,
+              icon: '/favicon.ico'
+            });
+          }
+
+          // Show toast notification
+          console.log('Showing toast notification');
+          toast.custom((t) => (
+            <div
+              className={`${
+                t.visible ? 'animate-enter' : 'animate-leave'
+              } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
+            >
+              <div className="flex-1 w-0 p-4">
+                <div className="flex items-start">
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-gray-900">
+                      New Challenge Available!
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {challenge.title} ({challenge.category}) - {challenge.points} points
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex border-l border-gray-200">
+                <button
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    handleChallengeClick(challenge);
+                  }}
+                  className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-red-600 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  View
+                </button>
+              </div>
+            </div>
+          ), {
+            duration: 5000,
+            position: 'top-right',
+          });
+        });
+
+        // Request notification permission on component mount
+        if (Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
+      } catch (error) {
+        console.error('Error initializing socket:', error);
+      }
+    }
+
+    // Cleanup function
     return () => {
       if (socket) {
         socket.disconnect();
       }
     };
-  }, []);
+  }, []); // Empty dependency array ensures this runs only once
 
   const filteredChallenges = challenges.filter(challenge => {
     const matchesCategory = selectedCategory === 'All' || challenge.category === selectedCategory;
@@ -133,6 +223,7 @@ export default function ChallengesClient({ initialChallenges }) {
     <>
       <div className="scanline" />
       <div className="matrix-bg" />
+      <Toaster />
       <div className={`min-h-screen ${isDark ? 'dark bg-black text-white' : 'light bg-white text-black'}`}>
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-between items-center mb-8">
@@ -197,30 +288,35 @@ export default function ChallengesClient({ initialChallenges }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredChallenges.map((challenge) => {
-              const isSolved = user?.solvedChallenges?.includes(challenge._id);
+              const isSolved = challenge.isSolved;
+              const solvedByTeam = challenge.solvedByTeam;
               return (
                 <div
                   key={challenge._id}
                   onClick={() => handleChallengeClick(challenge)}
-                  className={`hacker-card p-6 rounded-lg cursor-pointer ${
-                    isSolved 
-                      ? isDark 
-                        ? 'border-green-500 bg-green-900/20' 
-                        : 'border-green-600 bg-green-50'
-                      : ''
+                  className={`relative p-6 rounded-lg cursor-pointer transition-all duration-300 transform hover:scale-105 ${
+                    isDark
+                      ? `${isSolved ? 'bg-green-900' : solvedByTeam ? 'bg-blue-900' : 'bg-gray-800'} border ${isSolved ? 'border-green-500' : solvedByTeam ? 'border-blue-500' : 'border-red-500'}`
+                      : `${isSolved ? 'bg-green-100' : solvedByTeam ? 'bg-blue-100' : 'bg-white'} border ${isSolved ? 'border-green-500' : solvedByTeam ? 'border-blue-500' : 'border-gray-300'}`
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className={`text-xl font-bold ${glitchEffect ? 'glitch' : ''}`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className={`text-xl font-bold ${isSolved ? 'text-green-500' : solvedByTeam ? 'text-blue-500' : ''}`}>
                       {challenge.title}
                     </h3>
-                    {isSolved && (
-                      <span className="text-green-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
+                    <div className="flex items-center space-x-2">
+                      {isSolved && (
+                        <span className="text-green-500">✓ Solved</span>
+                      )}
+                      {!isSolved && solvedByTeam && (
+                        <span className="text-blue-500">Team Solved</span>
+                      )}
+                      <span className={`px-2 py-1 rounded text-sm ${
+                        isDark ? 'bg-gray-700' : 'bg-gray-200'
+                      }`}>
+                        {challenge.points} pts
                       </span>
-                    )}
+                    </div>
                   </div>
                   <p className={`mb-4 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                     {challenge.description}
@@ -232,13 +328,6 @@ export default function ChallengesClient({ initialChallenges }) {
                         : 'bg-red-50 text-red-600'
                     }`}>
                       {challenge.category}
-                    </span>
-                    <span className={`px-2 py-1 rounded text-sm ${
-                      isDark 
-                        ? 'bg-red-900/50 text-red-200' 
-                        : 'bg-red-50 text-red-600'
-                    }`}>
-                      {challenge.points} pts
                     </span>
                     <span className={`px-2 py-1 rounded text-sm ${
                       isDark 

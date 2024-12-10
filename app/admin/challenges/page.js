@@ -65,13 +65,14 @@ export default function ManageChallenges() {
 
   const handleToggleStatus = async (challengeId, currentStatus) => {
     try {
+      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
       const response = await fetch(`/api/admin/challenges/${challengeId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'x-user-data': localStorage.getItem('userData')
         },
-        body: JSON.stringify({ status: currentStatus === 'active' ? 'inactive' : 'active' }),
+        body: JSON.stringify({ status: newStatus }),
       });
 
       const data = await response.json();
@@ -79,10 +80,10 @@ export default function ManageChallenges() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to update challenge status');
       }
-      
+
       setChallenges(challenges.map(challenge => 
         challenge._id === challengeId 
-          ? { ...challenge, status: currentStatus === 'active' ? 'inactive' : 'active' } 
+          ? { ...challenge, status: newStatus } 
           : challenge
       ));
     } catch (err) {

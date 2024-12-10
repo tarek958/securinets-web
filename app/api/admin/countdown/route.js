@@ -1,20 +1,32 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 
-export async function GET() {
+export async function GET(request) {
   try {
     const { db } = await connectToDatabase();
     const countdown = await db.collection('countdown').findOne({});
-    return NextResponse.json({ countdown });
+    
+    // Explicitly create NextResponse with JSON and headers
+    return NextResponse.json(countdown || {}, {
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
     console.error('Error fetching countdown:', error);
-    return NextResponse.json({ error: 'Failed to fetch countdown' }, { status: 500 });
+    
+    // Use NextResponse.json for error response
+    return NextResponse.json(
+      { error: 'Failed to fetch countdown' }, 
+      { 
+        status: 500, 
+        headers: { 'Content-Type': 'application/json' } 
+      }
+    );
   }
 }
 
-export async function POST(req) {
+export async function POST(request) {
   try {
-    const { targetDate } = await req.json();
+    const { targetDate } = await request.json();
     const { db } = await connectToDatabase();
     
     // Delete existing countdown if any
@@ -27,9 +39,20 @@ export async function POST(req) {
     
     const countdown = await db.collection('countdown').findOne({ _id: result.insertedId });
     
-    return NextResponse.json({ countdown });
+    // Use NextResponse.json for consistent response
+    return NextResponse.json(countdown || {}, {
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
     console.error('Error setting countdown:', error);
-    return NextResponse.json({ error: 'Failed to set countdown' }, { status: 500 });
+    
+    // Use NextResponse.json for error response
+    return NextResponse.json(
+      { error: 'Failed to set countdown' }, 
+      { 
+        status: 500, 
+        headers: { 'Content-Type': 'application/json' } 
+      }
+    );
   }
 }

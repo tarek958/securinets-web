@@ -137,8 +137,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Team Section */}
-        <TeamSection />
+        {/* Team Section
+        <TeamSection /> */}
       </div>
       
     </main>

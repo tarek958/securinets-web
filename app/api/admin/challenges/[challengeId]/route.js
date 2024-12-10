@@ -3,7 +3,7 @@ import { connectToDatabase } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 // GET single challenge
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   try {
     const { db } = await connectToDatabase();
 
@@ -24,9 +24,14 @@ export async function GET(request, { params }) {
       );
     }
 
+    // Await params from context
+    const { challengeId } = await context.params;
+    console.log('Fetching challenge with ID:', challengeId);
+
     const challenge = await db.collection('challenges').findOne({
-      _id: new ObjectId(params.challengeId)
+      _id: new ObjectId(challengeId)
     });
+    console.log('Database query result:', challenge);
 
     if (!challenge) {
       return NextResponse.json(
@@ -46,7 +51,7 @@ export async function GET(request, { params }) {
 }
 
 // PATCH update challenge
-export async function PATCH(request, { params }) {
+export async function PATCH(request, context) {
   try {
     const { db } = await connectToDatabase();
 
@@ -67,64 +72,62 @@ export async function PATCH(request, { params }) {
       );
     }
 
+    // Parse form data from request body
     const formData = await request.formData();
-    const files = formData.getAll('files');
-
-    // Process new files if any
-    const processedFiles = await Promise.all(files.map(async (file) => {
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      
-      return {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        data: buffer.toString('base64')
-      };
-    }));
-
-    // Get existing files
+    const title = formData.get('title');
+    const description = formData.get('description');
+    const category = formData.get('category');
+    const difficulty = formData.get('difficulty');
+    const points = parseInt(formData.get('points'));
+    const flag = formData.get('flag');
+    const status = formData.get('status');
+    const hints = formData.getAll('hints[]').filter(hint => hint.trim());
     const existingFiles = JSON.parse(formData.get('existingFiles') || '[]');
 
-    const updateData = {
-      title: formData.get('title'),
-      description: formData.get('description'),
-      category: formData.get('category'),
-      points: parseInt(formData.get('points')),
-      flag: formData.get('flag'),
-      hints: formData.getAll('hints[]').filter(hint => hint.trim()),
-      files: [...existingFiles, ...processedFiles],
-      status: formData.get('status'),
-      updatedAt: new Date(),
-      updatedBy: user._id
-    };
+    // Determine update fields
+    const updateFields = {};
+    if (title) updateFields.title = title;
+    if (description) updateFields.description = description;
+    if (category) updateFields.category = category;
+    if (difficulty) updateFields.difficulty = difficulty;
+    if (points) updateFields.points = points;
+    if (flag) updateFields.flag = flag;
+    if (status) updateFields.status = status;
+    if (hints) updateFields.hints = hints;
+    if (existingFiles) updateFields.files = existingFiles;
+
+    // Await params from context
+    const { challengeId } = await context.params;
+    console.log('Updating challenge with ID:', challengeId);
 
     const result = await db.collection('challenges').updateOne(
-      { _id: new ObjectId(params.challengeId) },
-      { $set: updateData }
+      { _id: new ObjectId(challengeId) },
+      { $set: updateFields }
     );
+    console.log('Database update result:', result);
 
-    if (result.matchedCount === 0) {
+    if (result.modifiedCount > 0) {
       return NextResponse.json(
-        { error: 'Challenge not found' },
-        { status: 404 }
+        { message: 'Challenge updated successfully' },
+        { status: 200 }
+      );
+    } else {
+      return NextResponse.json(
+        { error: 'Failed to update challenge' },
+        { status: 500 }
       );
     }
-
-    return NextResponse.json({
-      message: 'Challenge updated successfully'
-    });
   } catch (error) {
     console.error('Error updating challenge:', error);
     return NextResponse.json(
-      { error: 'Failed to update challenge' },
+      { error: 'An error occurred while updating the challenge' },
       { status: 500 }
     );
   }
 }
 
 // DELETE challenge
-export async function DELETE(request, { params }) {
+export async function DELETE(request, context) {
   try {
     const { db } = await connectToDatabase();
 
@@ -145,9 +148,14 @@ export async function DELETE(request, { params }) {
       );
     }
 
+    // Await params from context
+    const { challengeId } = await context.params;
+    console.log('Deleting challenge with ID:', challengeId);
+
     const result = await db.collection('challenges').deleteOne({
-      _id: new ObjectId(params.challengeId)
+      _id: new ObjectId(challengeId)
     });
+    console.log('Database delete result:', result);
 
     if (result.deletedCount === 0) {
       return NextResponse.json(

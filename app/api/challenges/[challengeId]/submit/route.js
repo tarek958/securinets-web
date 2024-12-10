@@ -7,7 +7,13 @@ export async function POST(request, { params }) {
   try {
     const { db } = await connectToDatabase();
     const { flag } = await request.json();
-    const { challengeId } = params;
+    const challengeId = await params.challengeId;
+
+    console.log('Debug - Challenge submission:', {
+      challengeId,
+      flag,
+      userId: request.headers.get('user-id')
+    });
 
     // Verify user is authenticated
     const userCheck = await db.collection('users').findOne({ 
@@ -22,6 +28,8 @@ export async function POST(request, { params }) {
     const challenge = await db.collection('challenges').findOne({
       _id: new ObjectId(challengeId)
     });
+
+    console.log('Debug - Found challenge:', challenge);
 
     if (!challenge) {
       return NextResponse.json({ success: false, message: 'Challenge not found' }, { status: 404 });
@@ -48,37 +56,97 @@ export async function POST(request, { params }) {
 
     // Calculate current points
     const currentPoints = userCheck.ctfPoints || 0;
+    const newPoints = currentPoints + challenge.points;
 
-    // Update user's solved challenges and points atomically
-    const result = await db.collection('users').updateOne(
+    // Get user's team
+    const team = await db.collection('teams').findOne({
+      $or: [
+        { leaderId: userCheck._id.toString() },
+        { members: userCheck._id.toString() }
+      ]
+    });
+
+    // Update user's solved challenges and points
+    await db.collection('users').updateOne(
       { _id: userCheck._id },
       { 
         $addToSet: { 
           solvedChallenges: new ObjectId(challengeId)
         },
         $set: { 
-          ctfPoints: currentPoints + challenge.points,
+          ctfPoints: newPoints,
           updatedAt: new Date()
         }
       }
     );
 
-    if (!result.modifiedCount) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Failed to update user progress' 
-      }, { status: 500 });
+    if (team) {
+      // Check if any team member has already solved this challenge
+      const teamMembers = await db.collection('users')
+        .find({ 
+          _id: { 
+            $in: [...team.members, team.leaderId].map(id => {
+              try {
+                return new ObjectId(id);
+              } catch (error) {
+                return id;
+              }
+            })
+          }
+        })
+        .toArray();
+
+      const challengeAlreadySolvedByTeam = teamMembers.some(member => 
+        member.solvedChallenges?.some(id => 
+          id.toString() === challengeId.toString()
+        )
+      );
+
+      if (!challengeAlreadySolvedByTeam) {
+        // Update team's solved challenges, solve details, and points
+        const currentTeamPoints = team.points || 0;
+        await db.collection('teams').updateOne(
+          { _id: team._id },
+          { 
+            $addToSet: { 
+              solvedChallenges: challengeId,
+              solveDetails: {
+                challengeId: challengeId,
+                solvedBy: userCheck._id.toString(),
+                timestamp: new Date(),
+                points: challenge.points
+              }
+            },
+            $set: {
+              points: currentTeamPoints + challenge.points,
+              updatedAt: new Date()
+            }
+          }
+        );
+
+        console.log('Team points updated:', {
+          teamId: team._id.toString(),
+          oldPoints: currentTeamPoints,
+          newPoints: currentTeamPoints + challenge.points,
+          challengePoints: challenge.points
+        });
+      }
     }
 
-    // Get updated user data
-    const updatedUser = await db.collection('users').findOne({
-      _id: userCheck._id
+    // Log the solve
+    await db.collection('solves').insertOne({
+      userId: userCheck._id.toString(),
+      teamId: team?._id.toString(),
+      challengeId: challengeId,
+      timestamp: new Date(),
+      points: challenge.points,
+      isTeamSolve: !!team
     });
 
     console.log('Points update result:', {
       challengePoints: challenge.points,
       oldPoints: currentPoints,
-      newPoints: updatedUser.ctfPoints,
+      newPoints: newPoints,
       userId: userCheck._id.toString()
     });
 
@@ -104,14 +172,15 @@ export async function POST(request, { params }) {
       success: true,
       message: 'Congratulations! Flag is correct',
       points: challenge.points,
-      totalPoints: updatedUser.ctfPoints
+      totalPoints: newPoints
     });
 
   } catch (error) {
     console.error('Error in flag submission:', error);
     return NextResponse.json({ 
       success: false, 
-      message: 'Internal server error' 
+      message: 'Internal server error',
+      details: error.message
     }, { status: 500 });
   }
 }

@@ -2,10 +2,10 @@ import { verify } from 'jsonwebtoken';
 import { cookies } from 'next/headers';
 import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
-
+export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth-token');
 
     if (!token) {

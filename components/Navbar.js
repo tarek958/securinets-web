@@ -23,6 +23,7 @@ export default function Navbar() {
     { name: 'HOME', href: '/' },
     { name: 'CHALLENGES', href: '/challenges' },
     { name: 'WRITEUPS', href: '/writeups' },
+    { name: 'GROUP BOARD', href: '/group-board' },
     { name: 'LEADERBOARD', href: '/leaderboard' },
     { name: 'FORUM', href: '/forum' },
     { name: 'COUNTDOWN', href: '/countdown' },
@@ -32,7 +33,7 @@ export default function Navbar() {
     <header className={`bg-${isDark ? 'black' : 'white'} border-b border-${isDark ? 'red-500/20' : 'gray-200'}`}>
       <nav className="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8" aria-label="Global">
         <div className="flex lg:flex-1">
-          <Link href="/" className="-m-1.5 p-1.5">
+          <Link href="/" className="-m-1.5 p-5">
             <span className={`text-2xl font-bold bg-gradient-to-r from-${isDark ? 'red-500' : 'red-800'} to-${isDark ? 'red-800' : 'red-500'} bg-clip-text text-transparent hover:from-${isDark ? 'red-400' : 'red-700'} hover:to-${isDark ? 'red-700' : 'red-400'} transition-all duration-300`}>
               <HackingText text="SECURINETS" />
             </span>
@@ -109,7 +110,7 @@ export default function Navbar() {
           {user?.role === 'admin' && (
             <Link
               href="/admin"
-              className={`text-sm font-semibold leading-6 text-${isDark ? 'gray-300' : 'gray-600'} hover:text-red-500 transition-colors relative group`}
+              className={`text-sm font-semibold leading-6 p-5 text-${isDark ? 'gray-300' : 'gray-600'} hover:text-red-500 transition-colors relative group`}
             >
               <HackingText text="ADMIN" className={`group-hover:text-red-500`} />
               <span className={`absolute -bottom-1 left-0 w-0 h-0.5 bg-red-500 transition-all duration-300 group-hover:w-full`}></span>
@@ -205,6 +206,13 @@ export default function Navbar() {
                     <HackingText text="ADMIN" />
                   </Link>
                 )}
+                <Link
+                  href="/statistics"
+                  className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-300 hover:bg-gray-800 hover:text-red-500"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <HackingText text="STATISTICS" />
+                </Link>
               </div>
               <div className="py-6">
                 {user ? (

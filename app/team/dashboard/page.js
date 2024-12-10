@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'react-hot-toast';
 
 export default function TeamDashboard() {
   const router = useRouter();
   const [team, setTeam] = useState(null);
-  const [pendingMembers, setPendingMembers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState(null);
+  const [isLeader, setIsLeader] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
   // Fetch team data
   const fetchTeamData = async () => {
@@ -17,67 +17,48 @@ export default function TeamDashboard() {
       const response = await fetch('/api/teams/my-team');
       const data = await response.json();
 
-      if (data.success && data.team) {
+      if (data.success) {
         setTeam(data.team);
-        // If user is team leader, fetch pending requests
-        if (data.team.leaderId === data.team.members.find(m => m._id === data.team.leaderId)?._id) {
-          fetchPendingRequests(data.team._id);
+        // Check if current user is team leader
+        const userData = localStorage.getItem('userData');
+        if (userData) {
+          const user = JSON.parse(userData);
+          const userId = user.sub || user._id || user.id;
+          setIsLeader(data.team.leader.id === userId);
         }
       } else {
-        console.log('No team found, redirecting to join page');
-        router.push('/team/join');
+        setError(data.message);
       }
     } catch (error) {
-      console.error('Error fetching team:', error);
-      toast.error('Failed to fetch team data');
-      router.push('/team/join');
+      console.error('Error fetching team data:', error);
+      setError('Failed to load team data');
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch pending join requests
-  const fetchPendingRequests = async (teamId) => {
+  // Generate new invite code
+  const generateInviteCode = async () => {
     try {
-      const response = await fetch(`/api/teams/requests?teamId=${teamId}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setPendingMembers(data.pendingMembers);
-      }
-    } catch (error) {
-      console.error('Error fetching requests:', error);
-      toast.error('Failed to fetch join requests');
-    }
-  };
-
-  // Handle join request
-  const handleJoinRequest = async (userId, action) => {
-    try {
-      const response = await fetch('/api/teams/requests', {
+      setStatusMessage('Generating new invite code...');
+      const response = await fetch('/api/teams/generate-invite', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          teamId: team._id,
-          userId,
-          action,
-        }),
       });
-
       const data = await response.json();
       
       if (data.success) {
-        toast.success(data.message);
-        // Refresh pending requests
-        fetchPendingRequests(team._id);
+        await fetchTeamData();
+        setStatusMessage('New invite code generated successfully!');
+        setTimeout(() => setStatusMessage(''), 3000);
       } else {
-        toast.error(data.message);
+        setStatusMessage(data.message || 'Failed to generate invite code');
       }
     } catch (error) {
-      console.error('Error handling request:', error);
-      toast.error('Failed to handle join request');
+      console.error('Error generating invite code:', error);
+      setStatusMessage('Failed to generate invite code');
     }
   };
 
@@ -85,9 +66,8 @@ export default function TeamDashboard() {
   const copyInviteCode = () => {
     if (team?.inviteCode) {
       navigator.clipboard.writeText(team.inviteCode);
-      setCopied(true);
-      toast.success('Invite code copied to clipboard!');
-      setTimeout(() => setCopied(false), 2000);
+      setStatusMessage('Invite code copied to clipboard!');
+      setTimeout(() => setStatusMessage(''), 3000);
     }
   };
 
@@ -97,118 +77,145 @@ export default function TeamDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white p-8 flex items-center justify-center">
-        <div className="text-xl">Loading team data...</div>
+      <div className="min-h-screen bg-gray-900 text-white p-8">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl font-bold mb-8">Team Dashboard</h1>
+          <p>Loading...</p>
+        </div>
       </div>
     );
   }
 
-  if (!team) {
+  if (error || !team) {
     return (
-      <div className="min-h-screen bg-black text-white p-8 flex flex-col items-center justify-center">
-        <div className="text-xl mb-4">You are not part of a team</div>
-        <button
-          onClick={() => router.push('/team/join')}
-          className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-md"
-        >
-          Join a Team
-        </button>
+      <div className="min-h-screen bg-gray-900 text-white p-8">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl font-bold mb-8">Team Dashboard</h1>
+          <p className="text-red-500">{error || 'Team not found'}</p>
+        </div>
       </div>
     );
   }
-
-  const isLeader = team.leaderId === team.members.find(m => m._id === team.leaderId)?._id;
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
+    <div className="min-h-screen bg-gray-900 text-white p-8">
       <div className="max-w-6xl mx-auto">
-        <div className="bg-gray-900 rounded-lg p-6 mb-8">
-          <h1 className="text-4xl font-bold mb-4">{team.name}</h1>
-          <p className="text-gray-400 mb-4">{team.description}</p>
-          
-          {/* Team Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">Members</h3>
-              <p className="text-2xl">{team.members.length}</p>
-            </div>
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">Challenges Solved</h3>
-              <p className="text-2xl">{team.solvedChallenges?.length || 0}</p>
-            </div>
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">Total Points</h3>
-              <p className="text-2xl">{team.points || 0}</p>
-            </div>
-          </div>
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Team Dashboard</h1>
+        </div>
 
-          {/* Invite Code Section (Only for private teams) */}
-          {!team.isPublic && isLeader && (
-            <div className="bg-gray-800 p-4 rounded-lg mb-6">
-              <h3 className="text-lg font-semibold mb-2">Team Invite Code</h3>
+        {/* Status Message */}
+        {statusMessage && (
+          <div className="mb-4 p-4 bg-blue-600 text-white rounded-lg">
+            {statusMessage}
+          </div>
+        )}
+
+        {/* Team Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Team Name</h3>
+            <p className="text-2xl">{team.name}</p>
+          </div>
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Members</h3>
+            <p className="text-2xl">{team.members.length}</p>
+          </div>
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Total Challenges Solved</h3>
+            <p className="text-2xl">{team.stats.uniqueChallengesCount || 0}</p>
+          </div>
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Total Points</h3>
+            <p className="text-2xl">{team.stats.totalPoints || 0}</p>
+          </div>
+        </div>
+
+        {/* Invite Code Section */}
+        {isLeader && (
+          <div className="bg-gray-800 p-6 rounded-lg mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="text-lg font-semibold">Team Invite Code</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  {team.members.length}/4 members
+                  {team.members.length >= 4 && " (Maximum reached)"}
+                </p>
+              </div>
+              <button
+                onClick={generateInviteCode}
+                disabled={team.members.length >= 4}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  team.members.length >= 4
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                Generate New Code
+              </button>
+            </div>
+            {team.inviteCode && team.members.length < 4 ? (
               <div className="flex items-center gap-4">
-                <code className="bg-gray-700 px-4 py-2 rounded">{team.inviteCode}</code>
+                <code className="bg-gray-900 px-4 py-2 rounded font-mono text-lg">
+                  {team.inviteCode}
+                </code>
                 <button
                   onClick={copyInviteCode}
-                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md text-sm"
+                  className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Copy to clipboard"
                 >
-                  {copied ? 'Copied!' : 'Copy Code'}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                    <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                  </svg>
                 </button>
               </div>
-            </div>
-          )}
+            ) : team.members.length >= 4 ? (
+              <p className="text-yellow-500">Team is full. No new members can be invited.</p>
+            ) : (
+              <p className="text-gray-400">No invite code generated yet.</p>
+            )}
+          </div>
+        )}
 
-          {/* Pending Requests Section (Only for team leader) */}
-          {isLeader && pendingMembers.length > 0 && (
-            <div className="bg-gray-800 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-4">Pending Join Requests</h3>
-              <div className="grid gap-4">
-                {pendingMembers.map((member) => (
-                  <div key={member._id} className="flex items-center justify-between bg-gray-700 p-4 rounded-lg">
-                    <div>
-                      <p className="font-semibold">{member.username}</p>
-                      <p className="text-sm text-gray-400">{member.email}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleJoinRequest(member._id, 'accept')}
-                        className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-md text-sm"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => handleJoinRequest(member._id, 'reject')}
-                        className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-md text-sm"
-                      >
-                        Reject
-                      </button>
-                    </div>
+        {/* Team Members Section */}
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h3 className="text-xl font-semibold mb-6">Team Members</h3>
+          <div className="space-y-4">
+            {team.members.map((member) => (
+              <div
+                key={member._id}
+                className="flex items-center justify-between bg-gray-700 p-4 rounded-lg"
+              >
+                <div>
+                  <h4 className="font-semibold">{member.username}</h4>
+                  <p className="text-sm text-gray-400">{member.email}</p>
+                </div>
+                <div className="flex items-center gap-6 mr-4">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-400">Challenges</p>
+                    <p className="font-semibold">{member.solvedCount}</p>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Team Members List */}
-          <div className="mt-8">
-            <h3 className="text-xl font-semibold mb-4">Team Members</h3>
-            <div className="grid gap-4">
-              {team.members.map((member) => (
-                <div key={member._id} className="flex items-center justify-between bg-gray-800 p-4 rounded-lg">
-                  <div>
-                    <p className="font-semibold">{member.username}</p>
-                    <p className="text-sm text-gray-400">{member.email}</p>
-                  </div>
-                  <div className="text-sm">
-                    {member._id === team.leaderId ? (
-                      <span className="bg-yellow-600 px-3 py-1 rounded-full">Leader</span>
-                    ) : (
-                      <span className="bg-blue-600 px-3 py-1 rounded-full">Member</span>
-                    )}
+                  <div className="text-center">
+                    <p className="text-sm text-gray-400">Points</p>
+                    <p className="font-semibold">{member.points}</p>
                   </div>
                 </div>
-              ))}
-            </div>
+                <div className="text-sm">
+                  {member._id === team.leader.id ? (
+                    <span className="bg-yellow-600 px-3 py-1 rounded-full">Leader</span>
+                  ) : (
+                    <span className="bg-blue-600 px-3 py-1 rounded-full">Member</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

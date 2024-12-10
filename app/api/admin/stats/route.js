@@ -4,9 +4,11 @@ import User from '@/models/User';
 import Challenge from '@/models/Challenge';
 import Post from '@/models/Post';
 
+export const dynamic = 'force-dynamic'; // Ensure this route is treated dynamically
+
 export async function GET(request) {
   try {
-    // Get user data from headers
+    // Parse user data from headers
     const userData = request.headers.get('x-user-data');
     if (!userData) {
       return NextResponse.json(
@@ -23,21 +25,19 @@ export async function GET(request) {
       );
     }
 
+    // Connect to the database
     await connectDB();
 
-    // Get counts from each collection
-    const [totalUsers, totalPosts, totalChallenges, totalWriteups] = await Promise.all([
+    // Fetch counts from the database
+    const [totalUsers, totalPosts, totalChallenges, totalWriteups, activeChallenges] = await Promise.all([
       User.countDocuments(),
       Post.countDocuments(),
       Challenge.countDocuments(),
-      Challenge.countDocuments({ writeup: { $exists: true, $ne: null } })
+      Challenge.countDocuments({ writeup: { $exists: true, $ne: null } }),
+      Challenge.countDocuments({ active: true }),
     ]);
 
-    // Get count of active challenges
-    const activeChallenges = await Challenge.countDocuments({ 
-      active: true 
-    });
-
+    // Return success response
     return NextResponse.json({
       success: true,
       data: {
@@ -45,17 +45,16 @@ export async function GET(request) {
         totalPosts,
         totalChallenges,
         activeChallenges,
-        totalWriteups
-      }
+        totalWriteups,
+      },
     });
-
   } catch (error) {
     console.error('Error fetching admin stats:', error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: 'Failed to fetch stats',
-        message: process.env.NODE_ENV === 'development' ? error.message : undefined
+        message: process.env.NODE_ENV === 'development' ? error.message : undefined,
       },
       { status: 500 }
     );

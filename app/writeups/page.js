@@ -21,13 +21,8 @@ export default function WriteupsPage() {
 
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const response = await fetch('/api/auth/verify', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include' // Ensure cookies are sent
       });
       const data = await response.json();
       
@@ -85,6 +80,34 @@ export default function WriteupsPage() {
       }
     } catch (err) {
       setError('Failed to save writeup');
+    }
+  };
+
+  const handleCreateWriteup = async () => {
+    try {
+      const response = await fetch('/api/writeups', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Ensure cookies are sent
+        body: JSON.stringify({
+          challengeId: selectedChallenge._id,
+          writeup: editContent,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setWriteups([...writeups, data.writeup]);
+        setEditContent('');
+        setEditMode(false);
+      } else {
+        setError(data.error || 'Failed to create writeup');
+      }
+    } catch (err) {
+      setError('Failed to create writeup');
     }
   };
 
@@ -211,12 +234,23 @@ export default function WriteupsPage() {
                 </div>
 
                 {editMode ? (
-                  <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full h-96 p-4 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                    placeholder="Write your writeup in Markdown..."
-                  />
+                  <div>
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="w-full h-96 p-4 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      placeholder="Write your writeup in Markdown..."
+                    />
+                    <div className="bg-gray-800 rounded-lg p-4 mt-4">
+                      <h3 className="text-xl font-semibold text-white mb-2">Create New Writeup</h3>
+                      <button
+                        className="mt-2 bg-red-600 text-white p-2 rounded-lg"
+                        onClick={handleCreateWriteup}
+                      >
+                        Submit Writeup
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div className="prose prose-invert max-w-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>

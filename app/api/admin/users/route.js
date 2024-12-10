@@ -1,6 +1,6 @@
 import { connectToDatabase } from '@/lib/db';
 import { NextResponse } from 'next/server';
-
+export const dynamic = 'force-dynamic';
 // GET all users
 export async function GET(request) {
   try {

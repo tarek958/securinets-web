@@ -32,6 +32,16 @@ export async function POST(request) {
       );
     }
 
+    // Check for existing session
+    const existingSession = await db.collection("sessions").findOne({ userId: user._id });
+    if (existingSession) {
+      console.log('Active session already exists for user:', email);
+      return NextResponse.json(
+        { error: "Active session already exists. Please log out from the other session first." },
+        { status: 403 }
+      );
+    }
+
     // Create token payload
     const payload = {
       id: user._id.toString(),
@@ -47,6 +57,9 @@ export async function POST(request) {
       .setProtectedHeader({ alg: 'HS256' })
       .setExpirationTime('30d')
       .sign(secret);
+
+    // Store new session
+    await db.collection("sessions").insertOne({ userId: user._id, token });
 
     // Create the response
     const response = NextResponse.json(
