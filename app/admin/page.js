@@ -9,7 +9,8 @@ import {
   TrophyIcon, 
   ChatBubbleLeftRightIcon, 
   FlagIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  CommandLineIcon
 } from '@heroicons/react/24/outline';
 
 export default function AdminPage() {
@@ -69,7 +70,7 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 p-8">
+      <div className="min-h-screen bg-black p-8">
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
         </div>
@@ -79,92 +80,84 @@ export default function AdminPage() {
 
   const statCards = [
     {
-      name: 'Total Users',
+      name: 'Users_DB',
       value: stats.totalUsers,
-      description: 'Registered platform users',
+      description: 'Active system users in database',
       icon: UsersIcon,
       href: '/admin/users',
-      color: 'bg-red-500'
+      color: 'bg-red-500/10'
     },
     {
-      name: 'Total Posts',
+      name: 'Posts_LOG',
       value: stats.totalPosts,
-      description: 'Forum discussions and announcements',
+      description: 'Recorded communications and broadcasts',
       icon: ChatBubbleLeftRightIcon,
       href: '/admin/posts',
-      color: 'bg-red-600'
+      color: 'bg-red-500/10'
     },
     {
-      name: 'Total Challenges',
+      name: 'CTF_Challenges',
       value: stats.totalChallenges,
-      description: 'All CTF challenges',
+      description: 'Active security challenges',
       icon: TrophyIcon,
       href: '/admin/challenges',
-      color: 'bg-red-700'
+      color: 'bg-red-500/10'
     },
     {
-      name: 'Active Challenges',
+      name: 'Active_CTF',
       value: stats.activeChallenges,
-      description: 'Currently active challenges',
+      description: 'Currently deployed challenges',
       icon: FlagIcon,
-      href: '/admin/challenges/active',
-      color: 'bg-red-800'
+      href: '/admin/challenges?status=active',
+      color: 'bg-red-500/10'
     },
     {
-      name: 'Challenge Writeups',
+      name: 'Writeups_DB',
       value: stats.totalWriteups,
-      description: 'Published challenge solutions',
+      description: 'Documented solution reports',
       icon: DocumentTextIcon,
-      href: '/writeups',
-      color: 'bg-red-900'
+      href: '/admin/writeups',
+      color: 'bg-red-500/10'
     }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-900 p-8">
+    <div className="min-h-screen bg-black text-red-500 p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-          <div className="flex gap-4">
-            <Link
-              href="/challenges/new"
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              New Challenge
-            </Link>
-            <Link
-              href="/writeups"
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Manage Writeups
-            </Link>
-          </div>
+        <div className="flex items-center space-x-2 mb-8">
+          <CommandLineIcon className="h-8 w-8 text-red-500" />
+          <h1 className="text-3xl font-bold font-mono">&gt; Admin_Control_Panel</h1>
         </div>
 
         {error && (
-          <div className="mb-8 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-            {error}
+          <div className="bg-red-900/30 border border-red-500 text-red-500 px-4 py-3 rounded-lg mb-6 font-mono">
+            [ERROR]: {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {statCards.map((card) => (
             <Link
               key={card.name}
               href={card.href}
-              className="block p-6 bg-gray-800 rounded-lg shadow-lg hover:shadow-xl transition-shadow"
+              className="group block p-6 bg-gray-900 rounded-lg border border-red-500/50 hover:border-red-500 hover:bg-red-500/5 transition-all duration-300"
             >
-              <div className="flex items-center">
-                <div className={`p-3 ${card.color} rounded-lg`}>
-                  <card.icon className="h-6 w-6 text-white" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className={`p-3 ${card.color} rounded-lg border border-red-500`}>
+                    <card.icon className="h-6 w-6 text-red-500" aria-hidden="true" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-lg font-semibold font-mono text-red-500">{card.name}</p>
+                    <p className="mt-1 text-sm text-red-500/70 font-mono">{card.description}</p>
+                  </div>
                 </div>
-                <div className="ml-4">
-                  <h2 className="text-lg font-semibold text-white">{card.name}</h2>
-                  <p className="text-sm text-gray-400">{card.description}</p>
-                </div>
+                <p className="text-2xl font-bold font-mono text-red-500">
+                  {card.value.toString().padStart(2, '0')}
+                </p>
               </div>
-              <div className="mt-4">
-                <p className="text-2xl font-bold text-white">{card.value}</p>
+              <div className="mt-4 text-sm text-red-500/50 font-mono group-hover:text-red-500/70 transition-colors">
+                &gt; Click to access_{card.name}
               </div>
             </Link>
           ))}

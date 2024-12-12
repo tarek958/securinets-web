@@ -7,6 +7,17 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'fallback_secret'
 );
 
+async function getPublicIP() {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    return data.ip;
+  } catch (error) {
+    console.error('Error fetching public IP:', error);
+    return '127.0.0.1';
+  }
+}
+
 export async function POST(request) {
   try {
     const { email, password } = await request.json();
@@ -42,6 +53,23 @@ export async function POST(request) {
       );
     }
 
+    // Get public IP address
+    const ip = await getPublicIP();
+    console.log('User public IP:', ip);
+
+    // Add IP to user's history
+    await db.collection("users").updateOne(
+      { _id: user._id },
+      { 
+        $push: { 
+          ipHistory: {
+            ip,
+            timestamp: new Date()
+          }
+        }
+      }
+    );
+
     // Create token payload
     const payload = {
       id: user._id.toString(),
@@ -58,8 +86,13 @@ export async function POST(request) {
       .setExpirationTime('30d')
       .sign(secret);
 
-    // Store new session
-    await db.collection("sessions").insertOne({ userId: user._id, token });
+    // Store new session with IP
+    await db.collection("sessions").insertOne({ 
+      userId: user._id, 
+      token,
+      ip,
+      createdAt: new Date()
+    });
 
     // Create the response
     const response = NextResponse.json(

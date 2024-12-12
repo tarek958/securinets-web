@@ -9,6 +9,19 @@ export async function POST(request, { params }) {
     const { flag } = await request.json();
     const challengeId = await params.challengeId;
 
+    // Check if CTF has ended
+    const countdown = await db.collection('countdown').findOne({});
+    if (countdown) {
+      const targetDate = new Date(countdown.targetDate);
+      const now = new Date();
+      if (now >= targetDate) {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'The CTF has ended. Flag submissions are no longer accepted.' 
+        }, { status: 403 });
+      }
+    }
+
     console.log('Debug - Challenge submission:', {
       challengeId,
       flag,

@@ -1,58 +1,32 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db';
-import Challenge from '@/models/Challenge';
-import User from '@/models/User';
-import { verifyAuth, isAdmin } from '@/lib/auth';
+import { connectToDatabase } from '@/lib/db';
+import { ObjectId } from 'mongodb';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
-    await connectDB();
-
-    // Get all challenges with writeups
-    const challenges = await Challenge.find(
-      { writeup: { $exists: true, $ne: null } },
-      'title category difficulty points writeup'
-    ).lean();
-
-    // Get solved challenges for each user
-    const users = await User.find({}, 'username solvedChallenges').lean();
+    const { db } = await connectToDatabase();
     
-    // Create a map of challenge solves
-    const challengeSolves = {};
-    users.forEach(user => {
-      if (user.solvedChallenges && Array.isArray(user.solvedChallenges)) {
-        user.solvedChallenges.forEach(solve => {
-          if (solve && solve.challengeId) {
-            const challengeId = solve.challengeId.toString();
-            if (!challengeSolves[challengeId]) {
-              challengeSolves[challengeId] = 0;
-            }
-            challengeSolves[challengeId]++;
-          }
-        });
-      }
-    });
-
-    // Add solve count to each challenge
-    const writeups = challenges.map(challenge => ({
-      ...challenge,
-      solveCount: challengeSolves[challenge._id.toString()] || 0
-    }));
+    // Get all challenges with writeups
+    const challenges = await db.collection('challenges')
+      .find(
+        { writeup: { $exists: true, $ne: null } },
+        { projection: { title: 1, category: 1, difficulty: 1, points: 1, writeup: 1 } }
+      )
+      .toArray();
 
     return NextResponse.json({
       success: true,
-      data: writeups
+      data: challenges
     });
 
   } catch (error) {
     console.error('Error fetching writeups:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch writeups',
-        message: process.env.NODE_ENV === 'development' ? error.message : undefined
+      { 
+        success: false, 
+        error: 'Failed to fetch writeups' 
       },
       { status: 500 }
     );
@@ -61,58 +35,130 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    // Verify admin authentication
-    const authResult = await verifyAuth(request);
-    if (!authResult.success) {
+    // Get user data from header
+    const userDataHeader = request.headers.get('x-user-data');
+    if (!userDataHeader) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Check if user is admin
-    if (!isAdmin(authResult.user)) {
-      return NextResponse.json(
-        { success: false, error: 'Admin access required' },
+        { success: false, error: 'Unauthorized - No user data' },
         { status: 403 }
       );
     }
 
-    await connectDB();
+    const userData = JSON.parse(userDataHeader);
+    console.log('User Data from header:', userData);
 
-    const data = await request.json();
-    const { challengeId, writeup } = data;
-
-    if (!challengeId || !writeup) {
+    if (!userData || userData.role !== 'admin') {
       return NextResponse.json(
-        { success: false, error: 'Challenge ID and writeup are required' },
+        { success: false, error: 'Unauthorized - Admin access required' },
+        { status: 403 }
+      );
+    }
+
+    const { db } = await connectToDatabase();
+    const { challengeId, writeup } = await request.json();
+
+    if (!challengeId || typeof writeup !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request - Challenge ID and writeup content are required' },
         { status: 400 }
       );
     }
 
-    const challenge = await Challenge.findById(challengeId);
-    if (!challenge) {
+    // Update the challenge with the new writeup
+    const result = await db.collection('challenges').updateOne(
+      { _id: new ObjectId(challengeId) },
+      { $set: { writeup, updatedAt: new Date() } }
+    );
+
+    if (result.matchedCount === 0) {
       return NextResponse.json(
         { success: false, error: 'Challenge not found' },
         { status: 404 }
       );
     }
 
-    challenge.writeup = writeup;
-    await challenge.save();
+    // Get the updated challenge
+    const updatedChallenge = await db.collection('challenges').findOne(
+      { _id: new ObjectId(challengeId) },
+      { projection: { title: 1, category: 1, difficulty: 1, points: 1, writeup: 1 } }
+    );
 
     return NextResponse.json({
       success: true,
-      data: challenge
+      data: updatedChallenge,
+      message: 'Writeup updated successfully'
     });
 
   } catch (error) {
-    console.error('Error saving writeup:', error);
+    console.error('Error updating writeup:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to save writeup',
-        message: process.env.NODE_ENV === 'development' ? error.message : undefined
+      { 
+        success: false, 
+        error: 'Failed to update writeup' 
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    // Get user data from header
+    const userDataHeader = request.headers.get('x-user-data');
+    if (!userDataHeader) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized - No user data' },
+        { status: 403 }
+      );
+    }
+
+    const userData = JSON.parse(userDataHeader);
+    console.log('User Data from header:', userData);
+
+    if (!userData || userData.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized - Admin access required' },
+        { status: 403 }
+      );
+    }
+
+    const { db } = await connectToDatabase();
+    const { challengeId } = await request.json();
+
+    if (!challengeId) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid request - Challenge ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Update the challenge to remove the writeup
+    const result = await db.collection('challenges').updateOne(
+      { _id: new ObjectId(challengeId) },
+      { 
+        $unset: { writeup: "" },
+        $set: { updatedAt: new Date() }
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Challenge not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Writeup deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting writeup:', error);
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: 'Failed to delete writeup' 
       },
       { status: 500 }
     );

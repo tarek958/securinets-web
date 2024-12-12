@@ -17,6 +17,61 @@ export async function GET(request) {
       .sort({ createdAt: -1 })
       .toArray();
 
+    // Get all solved entries for each challenge
+    const solvedEntries = await db.collection('users')
+      .aggregate([
+        { $unwind: '$solvedChallenges' },
+        {
+          $group: {
+            _id: '$solvedChallenges',
+            count: { $sum: 1 },
+            users: { $push: '$_id' }
+          }
+        }
+      ]).toArray();
+
+    // Create a map of challenge ID to solved info
+    const solvedMap = solvedEntries.reduce((acc, entry) => {
+      acc[entry._id] = {
+        count: entry.count,
+        users: entry.users
+      };
+      return acc;
+    }, {});
+
+    // Get teams information
+    const teams = await db.collection('teams').find({}).toArray();
+    const teamMap = teams.reduce((acc, team) => {
+      const allMembers = [...new Set([...team.members, team.leaderId])];
+      acc[team._id.toString()] = {
+        name: team.name,
+        members: allMembers
+      };
+      return acc;
+    }, {});
+
+    // Enhance challenges with solved information
+    const enhancedChallenges = challenges.map(challenge => {
+      const solvedInfo = solvedMap[challenge._id.toString()] || { count: 0, users: [] };
+      
+      // Find teams that solved this challenge
+      const solvedTeams = teams.filter(team => {
+        const allMembers = [...new Set([...team.members, team.leaderId])];
+        return allMembers.some(memberId => 
+          solvedInfo.users.some(userId => userId.toString() === memberId)
+        );
+      }).map(team => ({
+        id: team._id,
+        name: team.name
+      }));
+
+      return {
+        ...challenge,
+        solvedCount: solvedInfo.count,
+        solvedTeams
+      };
+    });
+
     // If user is authenticated, get their solved challenges and team info
     if (authResult.user) {
       const userId = authResult.user._id;
@@ -51,7 +106,7 @@ export async function GET(request) {
             .toArray();
 
           // Mark challenges as solved if the current user has solved them
-          challenges.forEach(challenge => {
+          enhancedChallenges.forEach(challenge => {
             challenge.isSolved = user.solvedChallenges?.includes(challenge._id.toString());
             // Add team solve information
             challenge.solvedByTeam = teamMembers.some(
@@ -60,7 +115,7 @@ export async function GET(request) {
           });
         } else {
           // No team, just mark user's solved challenges
-          challenges.forEach(challenge => {
+          enhancedChallenges.forEach(challenge => {
             challenge.isSolved = user.solvedChallenges?.includes(challenge._id.toString());
             challenge.solvedByTeam = false;
           });
@@ -68,7 +123,7 @@ export async function GET(request) {
       }
     }
 
-    return NextResponse.json(challenges);
+    return NextResponse.json(enhancedChallenges);
   } catch (error) {
     console.error('Error fetching challenges:', error);
     return NextResponse.json(

@@ -65,27 +65,25 @@ export default function ManageChallenges() {
 
   const handleToggleStatus = async (challengeId, currentStatus) => {
     try {
-      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-      const response = await fetch(`/api/admin/challenges/${challengeId}`, {
+      const response = await fetch('/api/admin/challenges/status', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'x-user-data': localStorage.getItem('userData')
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({
+          challengeId,
+          status: currentStatus
+        })
       });
 
       const data = await response.json();
-      
       if (!response.ok) {
         throw new Error(data.error || 'Failed to update challenge status');
       }
 
-      setChallenges(challenges.map(challenge => 
-        challenge._id === challengeId 
-          ? { ...challenge, status: newStatus } 
-          : challenge
-      ));
+      // Refresh challenges list
+      await fetchChallenges();
     } catch (err) {
       setError(err.message);
     }
@@ -168,25 +166,22 @@ export default function ManageChallenges() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-300">{challenge.points}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        challenge.status === 'active'
-                          ? 'bg-green-900/60 text-green-400'
-                          : 'bg-gray-800/60 text-gray-400'
-                      }`}>
-                        {challenge.status}
-                      </span>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <button
+                        onClick={() => handleToggleStatus(challenge._id, challenge.status)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          challenge.status === 'active'
+                            ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                            : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                        }`}
+                      >
+                        {challenge.status === 'active' ? 'Active' : 'Inactive'}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       {new Date(challenge.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleToggleStatus(challenge._id, challenge.status)}
-                        className="text-red-400 hover:text-red-300 mr-4"
-                      >
-                        {challenge.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </button>
                       <Link
                         href={`/admin/challenges/${challenge._id}/edit`}
                         className="text-red-400 hover:text-red-300 mr-4"

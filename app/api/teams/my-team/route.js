@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
 export const dynamic = 'force-dynamic';
+
 export async function GET(request) {
   try {
     const userData = request.headers.get('x-user-data');
@@ -59,7 +60,7 @@ export async function GET(request) {
     const uniqueChallenges = new Set(solves.map(solve => solve.challengeId));
 
     // Get member details
-    const memberIds = [...new Set([...team.members, team.leaderId])].map(id => {
+    const memberIds = [...new Set([...team.members])].map(id => {
       try {
         return new ObjectId(id);
       } catch (error) {
@@ -143,16 +144,36 @@ export async function GET(request) {
       };
     });
 
+    // Get pending members with their details
+    const pendingMembers = await db.collection('users')
+      .find({ 
+        _id: { 
+          $in: (team.pendingMembers || []).map(id => {
+            try {
+              return new ObjectId(id);
+            } catch (error) {
+              return id;
+            }
+          })
+        }
+      })
+      .project({ 
+        _id: 1,
+        username: 1,
+        email: 1,
+        solvedChallenges: 1,
+        ctfPoints: 1
+      })
+      .toArray();
+
     const teamData = {
       _id: team._id,
       name: team.name,
       isPublic: team.isPublic || false,
       inviteCode: team.inviteCode || null,
-      leader: {
-        id: team.leaderId,
-        username: userMap[team.leaderId] || 'Unknown'
-      },
+      leaderId: team.leaderId,
       members: memberStats,
+      pendingMembers: pendingMembers,
       stats: {
         totalPoints,
         uniqueChallengesCount: uniqueChallenges.size,

@@ -1,9 +1,10 @@
 'use client';
 
+import React from 'react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/Providers';
-import { TrashIcon, UserPlusIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, UserPlusIcon, PencilIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 
 export default function ManageUsers() {
   const router = useRouter();
@@ -11,6 +12,7 @@ export default function ManageUsers() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
 
   useEffect(() => {
     if (!user) {
@@ -76,95 +78,154 @@ export default function ManageUsers() {
     }
   };
 
+  const handleViewIpHistory = (user) => {
+    setSelectedUser(selectedUser?._id === user._id ? null : user);
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 p-8">
+      <div className="min-h-screen bg-black p-8">
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-black p-8 text-red-500">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Manage Users</h1>
+          <div className="flex items-center space-x-4">
+            <h1 className="text-3xl font-bold text-red-500 font-mono">&gt; User_Management_Console</h1>
+            <button
+              onClick={() => router.push('/admin/users/add')}
+              className="px-4 py-2 text-sm bg-red-500 text-black rounded-lg border border-red-500 hover:bg-red-600 transition-colors duration-300 font-mono inline-flex items-center"
+            >
+              <UserPlusIcon className="h-4 w-4 mr-1" />
+              [Add_User]
+            </button>
+          </div>
           <button
             onClick={() => router.push('/admin')}
-            className="px-4 py-2 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 text-sm bg-red-900/30 text-red-500 rounded-lg border border-red-500 hover:bg-red-500 hover:text-black transition-colors duration-300 font-mono"
           >
-            Back to Dashboard
+            [Return_to_Dashboard]
           </button>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
+          <div className="bg-red-900/30 border border-red-500 text-red-500 px-4 py-3 rounded mb-6 font-mono">
+            [ERROR]: {error}
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-gray-900 rounded-lg shadow-lg overflow-hidden border border-red-500">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Username
+            <table className="min-w-full divide-y divide-red-500/30">
+              <thead className="bg-red-900/30">
+                <tr className="font-mono">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">
+                    &gt; Username_
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
+                  <th className="px-6 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">
+                    &gt; Email_
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Role
+                  <th className="px-6 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">
+                    &gt; Latest_IP_
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Joined
+                  <th className="px-6 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">
+                    &gt; Access_Level_
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
+                  <th className="px-6 py-3 text-left text-xs font-medium text-red-500 uppercase tracking-wider">
+                    &gt; Join_Date_
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-red-500 uppercase tracking-wider">
+                    &gt; Actions_
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-black divide-y divide-red-500/30 font-mono">
                 {users.map((user) => (
-                  <tr key={user._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {user.username}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{user.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        user.role === 'admin'
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(user.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleToggleAdmin(user._id, user.role)}
-                        className="text-indigo-600 hover:text-indigo-900 mr-4"
-                      >
-                        {user.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user._id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
+                  <React.Fragment key={user._id}>
+                    <tr className="hover:bg-red-900/20 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-red-500">
+                          {user.username}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-red-500/80">{user.email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="text-sm text-red-500/80 mr-2">{user.latestIp}</span>
+                          {user.ipHistory?.length > 0 && (
+                            <button
+                              onClick={() => handleViewIpHistory(user)}
+                              className="text-red-500 hover:text-red-400"
+                              title="View IP History"
+                            >
+                              <InformationCircleIcon className="h-5 w-5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          user.role === 'admin'
+                            ? 'bg-red-900/50 text-red-500 border border-red-500'
+                            : 'bg-red-500/10 text-red-500 border border-red-500/50'
+                        }`}>
+                          {user.role.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-500/80">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-2">
+                        <button
+                          onClick={() => router.push(`/admin/users/edit/${user._id}`)}
+                          className="text-red-500 hover:text-red-400 inline-flex items-center"
+                        >
+                          <PencilIcon className="h-4 w-4 mr-1" />
+                          [Edit]
+                        </button>
+                        <button
+                          onClick={() => handleToggleAdmin(user._id, user.role)}
+                          className="text-red-500 hover:text-red-400"
+                        >
+                          [{user.role === 'admin' ? 'Revoke_Admin' : 'Grant_Admin'}]
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(user._id)}
+                          className="text-red-500 hover:text-red-400 inline-flex items-center"
+                        >
+                          <TrashIcon className="h-4 w-4 mr-1" />
+                          [Delete]
+                        </button>
+                      </td>
+                    </tr>
+                    {selectedUser?._id === user._id && (
+                      <tr className="bg-red-900/10">
+                        <td colSpan="6" className="px-6 py-4">
+                          <div className="text-sm text-red-500">
+                            <h4 className="font-bold mb-2">&gt; IP_History_</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              {user.ipHistory.map((entry, index) => (
+                                <div key={index} className="flex items-center space-x-2">
+                                  <span className="text-red-500/80">{entry.ip}</span>
+                                  <span className="text-red-500/60">
+                                    {new Date(entry.timestamp).toLocaleString()}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

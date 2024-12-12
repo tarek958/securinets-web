@@ -1,130 +1,162 @@
 'use client';
 
+import React from 'react';
 import { useState, useEffect } from 'react';
-import { FaLock, FaUnlock, FaEdit, FaSave } from 'react-icons/fa';
+import { FaLock, FaUnlock, FaEdit, FaSave, FaPlus, FaTerminal, FaSkull } from 'react-icons/fa';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useAuth } from '@/components/Providers';
+import dynamic from 'next/dynamic';
+import '@uiw/react-md-editor/markdown-editor.css';
+import '@uiw/react-markdown-preview/markdown.css';
+import './writeup.css';
+
+const MDEditor = dynamic(
+  () => import('@uiw/react-md-editor').then((mod) => mod.default),
+  { ssr: false }
+);
 
 export default function WriteupsPage() {
-  const [writeups, setWriteups] = useState([]);
+  const [challenges, setChallenges] = useState([]);
   const [selectedChallenge, setSelectedChallenge] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
 
   useEffect(() => {
-    checkAuth();
-    fetchWriteups();
+    fetchChallenges();
   }, []);
 
-  const checkAuth = async () => {
-    try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include' // Ensure cookies are sent
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        setUser(data.user);
-      }
-    } catch (err) {
-      console.error('Auth check failed:', err);
-    }
+  const getAuthHeader = () => {
+    const cookies = document.cookie.split(';');
+    const authCookie = cookies.find(cookie => cookie.trim().startsWith('auth-token='));
+    const token = authCookie ? authCookie.split('=')[1].trim() : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  const fetchWriteups = async () => {
+  const fetchChallenges = async () => {
     try {
-      const response = await fetch('/api/writeups');
-      const data = await response.json();
+      const response = await fetch('/api/challenges', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        }
+      });
       
-      if (data.success) {
-        setWriteups(data.data);
-      } else {
-        setError(data.error || 'Failed to fetch writeups');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      const data = await response.json();
+      setChallenges(data);
+      setLoading(false);
     } catch (err) {
-      setError('Failed to fetch writeups');
-    } finally {
+      console.error('Error fetching challenges:', err);
+      setError('Failed to fetch challenges');
       setLoading(false);
     }
   };
 
   const handleSaveWriteup = async () => {
+    if (!selectedChallenge) return;
+    if (!user || user.role !== 'admin') {
+      alert('Access Denied: Admin privileges required.');
+      return;
+    }
+
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch('/api/writeups', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...getAuthHeader()
         },
         body: JSON.stringify({
           challengeId: selectedChallenge._id,
-          writeup: editContent,
-        }),
+          writeup: editContent
+        })
       });
 
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
+      const data = await response.json();
       if (data.success) {
-        setWriteups(writeups.map(w => 
-          w._id === selectedChallenge._id 
-            ? { ...w, writeup: editContent }
-            : w
+        setChallenges(challenges.map(challenge => 
+          challenge._id === selectedChallenge._id 
+            ? { ...challenge, writeup: editContent }
+            : challenge
         ));
         setEditMode(false);
       } else {
-        setError(data.error || 'Failed to save writeup');
+        alert('Operation Failed: ' + (data.error || 'Unknown error occurred'));
       }
     } catch (err) {
-      setError('Failed to save writeup');
+      alert('System Error: Failed to save writeup');
+      console.error('Save error:', err);
     }
   };
 
-  const handleCreateWriteup = async () => {
+  const handleDeleteWriteup = async () => {
+    if (!selectedChallenge) return;
+    if (!user || user.role !== 'admin') {
+      alert('Access Denied: Admin privileges required.');
+      return;
+    }
+
+    if (!confirm('[WARNING] Confirm deletion of writeup. This action cannot be undone.')) {
+      return;
+    }
+
     try {
       const response = await fetch('/api/writeups', {
-        method: 'POST',
+        method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeader()
         },
-        credentials: 'include', // Ensure cookies are sent
         body: JSON.stringify({
-          challengeId: selectedChallenge._id,
-          writeup: editContent,
-        }),
+          challengeId: selectedChallenge._id
+        })
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = await response.json();
       
       if (data.success) {
-        setWriteups([...writeups, data.writeup]);
-        setEditContent('');
+        setChallenges(challenges.map(challenge => 
+          challenge._id === selectedChallenge._id 
+            ? { ...challenge, writeup: '' }
+            : challenge
+        ));
         setEditMode(false);
+        setEditContent('');
+        alert('[SUCCESS] Writeup successfully eliminated from the system.');
       } else {
-        setError(data.error || 'Failed to create writeup');
+        alert('[ERROR] ' + (data.error || 'Operation failed'));
       }
     } catch (err) {
-      setError('Failed to create writeup');
+      alert('[CRITICAL] System error during deletion');
+      console.error('Delete error:', err);
     }
-  };
-
-  const handleEditClick = () => {
-    setEditContent(selectedChallenge.writeup || '');
-    setEditMode(true);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center">
-            <div className="animate-pulse flex justify-center items-center space-x-4">
-              <div className="h-12 w-12 bg-red-500 rounded-full"></div>
-              <div className="h-4 bg-red-500 rounded w-48"></div>
-            </div>
+      <div className="min-h-screen bg-black text-red-500 p-8">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl font-mono font-bold mb-8 flex items-center">
+            <FaTerminal className="mr-2" />
+            &gt; CTF_Writeups_Terminal
+          </h1>
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
           </div>
         </div>
       </div>
@@ -133,11 +165,14 @@ export default function WriteupsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-900 py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center text-red-500">
-            <h2 className="text-xl font-semibold">Error</h2>
-            <p>{error}</p>
+      <div className="min-h-screen bg-black text-red-500 p-8">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-3xl font-mono font-bold mb-8 flex items-center">
+            <FaSkull className="mr-2" />
+            &gt; System_Error
+          </h1>
+          <div className="bg-red-900/30 border border-red-500 rounded-lg p-4">
+            <p className="font-mono">[ERROR] {error}</p>
           </div>
         </div>
       </div>
@@ -145,125 +180,111 @@ export default function WriteupsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white">Challenge Writeups</h1>
-          <p className="mt-2 text-gray-400">Learn from solved challenges</p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="min-h-screen bg-black text-red-500 p-8" data-color-mode="dark">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-mono font-bold mb-8 flex items-center">
+          <FaTerminal className="mr-2" />
+          &gt; CTF_Writeups_Terminal
+        </h1>
+        
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Challenge List */}
-          <div className="lg:col-span-1 bg-gray-800 rounded-lg p-4">
-            <h2 className="text-xl font-semibold text-white mb-4">Challenges</h2>
+          <div className="md:col-span-1 bg-gray-900 border border-red-500/50 p-4 rounded-lg">
+            <h2 className="text-xl font-mono font-semibold mb-4 flex items-center">
+              <FaLock className="mr-2" />
+              &gt; Target_List
+            </h2>
             <div className="space-y-2">
-              {writeups.map((challenge) => (
+              {challenges.map((challenge) => (
                 <button
                   key={challenge._id}
                   onClick={() => {
                     setSelectedChallenge(challenge);
+                    setEditContent(challenge.writeup || '');
                     setEditMode(false);
                   }}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${
+                  className={`w-full text-left p-3 rounded font-mono ${
                     selectedChallenge?._id === challenge._id
-                      ? 'bg-red-600 text-white'
-                      : 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                      ? 'bg-red-900/50 border border-red-500'
+                      : 'bg-gray-800 border border-red-500/30 hover:bg-red-900/30'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-medium">{challenge.title}</h3>
-                      <p className="text-sm text-gray-400">
-                        {challenge.category} • {challenge.points} pts
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-400">
-                        {challenge.solveCount} solves
-                      </span>
-                      {challenge.writeup ? (
-                        <FaUnlock className="text-green-500" />
-                      ) : (
-                        <FaLock className="text-red-500" />
-                      )}
-                    </div>
+                  <div className="flex items-center">
+                    {challenge.writeup ? <FaUnlock className="mr-2" /> : <FaLock className="mr-2" />}
+                    &gt; {challenge.title}
                   </div>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Writeup Display */}
-          <div className="lg:col-span-2">
+          {/* Writeup Content */}
+          <div className="md:col-span-3 bg-gray-900 border border-red-500/50 p-4 rounded-lg">
             {selectedChallenge ? (
-              <div className="bg-gray-800 rounded-lg p-6">
+              <>
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold text-white">
-                    {selectedChallenge.title}
+                  <h2 className="text-xl font-mono font-semibold flex items-center">
+                    <FaTerminal className="mr-2" />
+                    &gt; {selectedChallenge.title}_writeup
                   </h2>
                   {user?.role === 'admin' && (
-                    <button
-                      onClick={editMode ? handleSaveWriteup : handleEditClick}
-                      className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                    >
+                    <div className="space-x-2">
                       {editMode ? (
-                        <>
-                          <FaSave />
-                          <span>Save</span>
-                        </>
+                        <button
+                          onClick={handleSaveWriteup}
+                          className="px-4 py-2 bg-red-500/10 text-red-500 rounded border border-red-500 hover:bg-red-500 hover:text-black transition-colors duration-300 font-mono inline-flex items-center"
+                        >
+                          <FaSave className="mr-2" />
+                          [SAVE]
+                        </button>
                       ) : (
-                        <>
-                          <FaEdit />
-                          <span>Edit</span>
-                        </>
+                        <button
+                          onClick={() => setEditMode(true)}
+                          className="px-4 py-2 bg-red-500/10 text-red-500 rounded border border-red-500 hover:bg-red-500 hover:text-black transition-colors duration-300 font-mono inline-flex items-center"
+                        >
+                          <FaEdit className="mr-2" />
+                          [EDIT]
+                        </button>
                       )}
-                    </button>
+                      {selectedChallenge.writeup && (
+                        <button
+                          onClick={handleDeleteWriteup}
+                          className="px-4 py-2 bg-red-900/30 text-red-500 rounded border border-red-500 hover:bg-red-500 hover:text-black transition-colors duration-300 font-mono inline-flex items-center"
+                        >
+                          <FaSkull className="mr-2" />
+                          [DELETE]
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
-                <div className="mb-4">
-                  <span className="inline-block bg-gray-700 text-gray-200 px-3 py-1 rounded-full text-sm mr-2">
-                    {selectedChallenge.category}
-                  </span>
-                  <span className="inline-block bg-gray-700 text-gray-200 px-3 py-1 rounded-full text-sm mr-2">
-                    {selectedChallenge.difficulty}
-                  </span>
-                  <span className="inline-block bg-gray-700 text-gray-200 px-3 py-1 rounded-full text-sm">
-                    {selectedChallenge.points} points
-                  </span>
-                </div>
-
                 {editMode ? (
-                  <div>
-                    <textarea
+                  <div className="bg-gray-800 rounded-lg p-4 border border-red-500/30">
+                    <MDEditor
                       value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full h-96 p-4 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      placeholder="Write your writeup in Markdown..."
+                      onChange={setEditContent}
+                      preview="edit"
+                      className="writeup-editor"
                     />
-                    <div className="bg-gray-800 rounded-lg p-4 mt-4">
-                      <h3 className="text-xl font-semibold text-white mb-2">Create New Writeup</h3>
-                      <button
-                        className="mt-2 bg-red-600 text-white p-2 rounded-lg"
-                        onClick={handleCreateWriteup}
-                      >
-                        Submit Writeup
-                      </button>
-                    </div>
                   </div>
                 ) : (
-                  <div className="prose prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {selectedChallenge.writeup || '*No writeup available yet*'}
-                    </ReactMarkdown>
+                  <div className="bg-gray-800 rounded-lg p-4 border border-red-500/30 prose prose-invert max-w-none">
+                    {selectedChallenge.writeup ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {selectedChallenge.writeup}
+                      </ReactMarkdown>
+                    ) : (
+                      <p className="text-red-500/70 font-mono">
+                        [NO_WRITEUP_FOUND] This challenge has not been documented yet.
+                      </p>
+                    )}
                   </div>
                 )}
-              </div>
+              </>
             ) : (
-              <div className="bg-gray-800 rounded-lg p-6 flex items-center justify-center h-full">
-                <p className="text-gray-400 text-lg">
-                  Select a challenge to view its writeup
-                </p>
+              <div className="flex items-center justify-center h-64 text-red-500/70 font-mono">
+                <p>&gt; Select a challenge to view its writeup</p>
               </div>
             )}
           </div>

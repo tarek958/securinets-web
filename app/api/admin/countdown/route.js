@@ -6,14 +6,16 @@ export async function GET(request) {
     const { db } = await connectToDatabase();
     const countdown = await db.collection('countdown').findOne({});
     
-    // Explicitly create NextResponse with JSON and headers
-    return NextResponse.json(countdown || {}, {
+    return NextResponse.json({ 
+      countdown: countdown ? {
+        ...countdown,
+        targetDate: countdown.targetDate.toISOString()
+      } : null 
+    }, {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
     console.error('Error fetching countdown:', error);
-    
-    // Use NextResponse.json for error response
     return NextResponse.json(
       { error: 'Failed to fetch countdown' }, 
       { 
@@ -27,26 +29,44 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const { targetDate } = await request.json();
+    if (!targetDate) {
+      return NextResponse.json(
+        { error: 'Target date is required' },
+        { status: 400 }
+      );
+    }
+
     const { db } = await connectToDatabase();
     
     // Delete existing countdown if any
     await db.collection('countdown').deleteMany({});
     
-    // Create new countdown
+    // Create new countdown with validated date
+    const newDate = new Date(targetDate);
+    if (isNaN(newDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid date format' },
+        { status: 400 }
+      );
+    }
+
     const result = await db.collection('countdown').insertOne({
-      targetDate: new Date(targetDate)
+      targetDate: newDate,
+      createdAt: new Date()
     });
     
     const countdown = await db.collection('countdown').findOne({ _id: result.insertedId });
     
-    // Use NextResponse.json for consistent response
-    return NextResponse.json(countdown || {}, {
+    return NextResponse.json({ 
+      countdown: {
+        ...countdown,
+        targetDate: countdown.targetDate.toISOString()
+      }
+    }, {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
     console.error('Error setting countdown:', error);
-    
-    // Use NextResponse.json for error response
     return NextResponse.json(
       { error: 'Failed to set countdown' }, 
       { 

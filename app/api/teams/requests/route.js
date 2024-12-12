@@ -32,24 +32,35 @@ export async function POST(request) {
 
     const { db } = await connectToDatabase();
 
-    // Verify the user is the team leader
+    // Verify the user is a team member
     const team = await db.collection('teams').findOne({
       _id: new ObjectId(teamId),
-      leaderId: user.id
+      $or: [
+        { leaderId: user.id },
+        { members: user.id }
+      ]
     });
 
     if (!team) {
       return NextResponse.json({
         success: false,
-        message: 'Unauthorized: Only team leader can handle requests'
+        message: 'Unauthorized: Only team members can handle requests'
       }, { status: 403 });
     }
 
     // Check if the user is actually in pending members
-    if (!team.pendingMembers.includes(userId)) {
+    if (!team.pendingMembers?.includes(userId)) {
       return NextResponse.json({
         success: false,
         message: 'User is not in pending members'
+      }, { status: 400 });
+    }
+
+    // Check team size limit before accepting
+    if (action === 'accept' && team.members?.length >= 4) {
+      return NextResponse.json({
+        success: false,
+        message: 'Team has reached the maximum limit of 4 members'
       }, { status: 400 });
     }
 
@@ -124,24 +135,33 @@ export async function GET(request) {
 
     const { db } = await connectToDatabase();
 
-    // Verify the user is the team leader
+    // Verify the user is a team member
     const team = await db.collection('teams').findOne({
       _id: new ObjectId(teamId),
-      leaderId: user.id
+      $or: [
+        { leaderId: user.id },
+        { members: user.id }
+      ]
     });
 
     if (!team) {
       return NextResponse.json({
         success: false,
-        message: 'Unauthorized: Only team leader can view requests'
+        message: 'Unauthorized: Only team members can view requests'
       }, { status: 403 });
     }
 
     // Get pending members with their details
-    const pendingMembers = await db.collection('users')
+    const pendingMembers = team.pendingMembers ? await db.collection('users')
       .find({ _id: { $in: team.pendingMembers.map(id => new ObjectId(id)) } })
-      .project({ password: 0 }) // Exclude sensitive data
-      .toArray();
+      .project({ 
+        _id: 1,
+        username: 1,
+        email: 1,
+        solvedChallenges: 1,
+        ctfPoints: 1
+      })
+      .toArray() : [];
 
     return NextResponse.json({
       success: true,

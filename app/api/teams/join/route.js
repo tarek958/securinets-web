@@ -24,7 +24,7 @@ export async function POST(request) {
     // Check if user is already in a team
     const userTeam = await db.collection('teams').findOne({
       $or: [
-        { leaderId: user.id },
+        { 'leader.id': user.id },
         { members: user.id },
         { pendingMembers: user.id }
       ]
@@ -47,6 +47,15 @@ export async function POST(request) {
         success: false,
         message: 'Team not found'
       }, { status: 404 });
+    }
+
+    // Check team size limit (4 members including leader)
+    const currentMemberCount = team.members ? team.members.length : 0;
+    if (currentMemberCount >= 4) {
+      return NextResponse.json({
+        success: false,
+        message: 'Team has reached the maximum limit of 4 members'
+      }, { status: 400 });
     }
 
     // For private teams, validate invite code
@@ -86,7 +95,8 @@ export async function POST(request) {
       message: team.isPublic 
         ? 'Join request sent successfully' 
         : 'Joined team successfully',
-      status: team.isPublic ? 'pending' : 'joined'
+      status: team.isPublic ? 'pending' : 'joined',
+      remainingSlots: 4 - (currentMemberCount + 1)
     });
 
   } catch (error) {

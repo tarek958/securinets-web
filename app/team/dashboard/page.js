@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 
 export default function TeamDashboard() {
   const router = useRouter();
@@ -10,6 +11,7 @@ export default function TeamDashboard() {
   const [error, setError] = useState(null);
   const [isLeader, setIsLeader] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [pendingRequests, setPendingRequests] = useState([]);
 
   // Fetch team data
   const fetchTeamData = async () => {
@@ -19,12 +21,14 @@ export default function TeamDashboard() {
 
       if (data.success) {
         setTeam(data.team);
+        // Set pending requests directly from team data
+        setPendingRequests(data.team.pendingMembers || []);
         // Check if current user is team leader
         const userData = localStorage.getItem('userData');
         if (userData) {
           const user = JSON.parse(userData);
           const userId = user.sub || user._id || user.id;
-          setIsLeader(data.team.leader.id === userId);
+          setIsLeader(data.team.leaderId === userId);
         }
       } else {
         setError(data.message);
@@ -34,6 +38,35 @@ export default function TeamDashboard() {
       setError('Failed to load team data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle request action (accept/reject)
+  const handleRequest = async (userId, action) => {
+    try {
+      const response = await fetch('/api/teams/requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          teamId: team._id,
+          userId,
+          action
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(action === 'accept' ? 'Member accepted' : 'Request rejected');
+        // Refresh data
+        fetchTeamData();
+      } else {
+        toast.error(data.message || 'Failed to process request');
+      }
+    } catch (error) {
+      console.error('Error handling request:', error);
+      toast.error('Failed to process request');
     }
   };
 
@@ -103,6 +136,11 @@ export default function TeamDashboard() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Team Dashboard</h1>
+          {pendingRequests.length > 0 && (
+            <div className="bg-yellow-600 px-4 py-2 rounded-lg">
+              {pendingRequests.length} Pending Request{pendingRequests.length !== 1 && 's'}
+            </div>
+          )}
         </div>
 
         {/* Status Message */}
@@ -120,7 +158,7 @@ export default function TeamDashboard() {
           </div>
           <div className="bg-gray-800 p-4 rounded-lg">
             <h3 className="text-lg font-semibold mb-2">Members</h3>
-            <p className="text-2xl">{team.members.length}</p>
+            <p className="text-2xl">{team.members.length}/4</p>
           </div>
           <div className="bg-gray-800 p-4 rounded-lg">
             <h3 className="text-lg font-semibold mb-2">Total Challenges Solved</h3>
@@ -131,6 +169,44 @@ export default function TeamDashboard() {
             <p className="text-2xl">{team.stats.totalPoints || 0}</p>
           </div>
         </div>
+
+        {/* Pending Requests Section */}
+        {pendingRequests.length > 0 && (
+          <div className="bg-gray-800 p-6 rounded-lg shadow-md mb-6">
+            <h3 className="text-xl font-semibold mb-4 text-white">
+              Pending Join Requests ({pendingRequests.length})
+            </h3>
+            <div className="space-y-4">
+              {pendingRequests.map((request) => (
+                <div key={request._id} className="flex items-center justify-between bg-gray-700 p-4 rounded-lg">
+                  <div>
+                    <p className="text-white font-medium">{request.username}</p>
+                    <p className="text-gray-400 text-sm">{request.email}</p>
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleRequest(request._id, 'accept')}
+                      disabled={team.members.length >= 4}
+                      className={`px-4 py-2 rounded-md text-white ${
+                        team.members.length >= 4
+                          ? 'bg-gray-500 cursor-not-allowed'
+                          : 'bg-green-600 hover:bg-green-700'
+                      }`}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => handleRequest(request._id, 'reject')}
+                      className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-md text-white"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Invite Code Section */}
         {isLeader && (
@@ -208,7 +284,7 @@ export default function TeamDashboard() {
                   </div>
                 </div>
                 <div className="text-sm">
-                  {member._id === team.leader.id ? (
+                  {member._id === team.leaderId ? (
                     <span className="bg-yellow-600 px-3 py-1 rounded-full">Leader</span>
                   ) : (
                     <span className="bg-blue-600 px-3 py-1 rounded-full">Member</span>
