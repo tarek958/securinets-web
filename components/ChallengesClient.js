@@ -30,8 +30,7 @@ export default function ChallengesClient({ initialChallenges }) {
     // Ensure socket is only initialized once
     if (!socket) {
       try {
-        console.log('Initializing socket connection...');
-        console.log('Current window location:', window.location);
+       
         
         socket = io(window.location.origin, {
           path: '/api/socket',
@@ -60,7 +59,7 @@ export default function ChallengesClient({ initialChallenges }) {
         });
 
         socket.on('challengeUpdate', (updatedChallenge) => {
-          console.log('Received challenge update:', updatedChallenge);
+      
           setChallenges(prevChallenges => 
             prevChallenges.map(challenge => 
               challenge._id === updatedChallenge._id ? updatedChallenge : challenge
@@ -70,22 +69,21 @@ export default function ChallengesClient({ initialChallenges }) {
 
         // Handle new challenge notifications
         socket.on('challengeAdded', ({ message, challenge }) => {
-          console.log('Received new challenge notification:', { message, challenge });
+      
           
           // Add the new challenge to the list
           setChallenges(prev => [challenge, ...prev]);
 
           // Show browser notification if permission is granted
           if (Notification.permission === 'granted') {
-            console.log('Showing browser notification');
+       
             new Notification('New Challenge Available!', {
               body: `${challenge.title} (${challenge.category}) - ${challenge.points} points`,
               icon: '/favicon.ico'
             });
           }
 
-          // Show toast notification
-          console.log('Showing toast notification');
+       
           toast.custom((t) => (
             <div
               className={`${
