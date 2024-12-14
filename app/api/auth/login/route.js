@@ -1,4 +1,3 @@
-
 import { connectToDatabase } from "@/lib/db";
 import { SignJWT } from 'jose';
 import { NextResponse } from "next/server";
@@ -104,11 +103,10 @@ export async function POST(request) {
     // Set the token cookie
     response.cookies.set('auth-token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: false, // Set to false since we're using IP address
+      sameSite: 'lax',  // Changed to lax to work with IP address
       path: '/',
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-      
+      maxAge: 30 * 24 * 60 * 60 // 30 days
     });
 
     console.log('Login successful for user:', email);
