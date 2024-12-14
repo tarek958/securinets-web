@@ -45,6 +45,16 @@ export default function ChallengeModal({ challenge, onClose, onSubmit, loading, 
               <p>{challenge.hint}</p>
             </div>
           )}
+          {challenge.files && challenge.files.length > 0 && (
+            <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-blue-500/30">
+              <h3 className="text-lg font-bold text-blue-400 mb-2">Challenge Files</h3>
+              <ul className="list-disc list-inside">
+                {challenge.files.map((file, index) => (
+                  <li key={index}><a href={file.url} className="text-blue-400 hover:underline">{file.name}</a></li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">

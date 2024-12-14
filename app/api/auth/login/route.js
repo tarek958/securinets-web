@@ -1,3 +1,4 @@
+
 import { connectToDatabase } from "@/lib/db";
 import { SignJWT } from 'jose';
 import { NextResponse } from "next/server";
@@ -107,6 +108,7 @@ export async function POST(request) {
       sameSite: 'lax',
       path: '/',
       maxAge: 30 * 24 * 60 * 60, // 30 days
+      
     });
 
     console.log('Login successful for user:', email);

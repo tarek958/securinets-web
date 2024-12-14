@@ -291,9 +291,21 @@ export default function ChallengesPage() {
               {challenge.files && challenge.files.length > 0 && (
                 <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-blue-500/30">
                   <h3 className="text-lg font-bold text-blue-400 mb-2">Challenge Files</h3>
-                  <ul className="list-disc list-inside">
+                  <ul className="list-disc list-inside space-y-2">
                     {challenge.files.map((file, index) => (
-                      <li key={index}><a href={file.url} className="text-blue-400 hover:underline">{file.name}</a></li>
+                      <li key={index} className="flex items-center gap-2">
+                        <a 
+                          href={`data:${file.type};base64,${file.data}`}
+                          download={file.name}
+                          className="text-blue-400 hover:underline flex items-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          {file.name}
+                          <span className="text-xs text-gray-500">({(file.size/1024).toFixed(1)} KB)</span>
+                        </a>
+                      </li>
                     ))}
                   </ul>
                 </div>
