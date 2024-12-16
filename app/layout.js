@@ -28,12 +28,18 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <ThemeProvider>
             <div className="min-h-screen flex flex-col">
-              <Navbar />
-              <div className="flex-grow">
-                {children}
+            
+                <div className="z-[100]">
+                  <Navbar />
+                </div>
+                <div className="flex-grow">
+                <div className="pt-20">
+                  {children}
+                </div>
+                </div>
+                <Toaster position="top-right" />
               </div>
-            </div>
-            <Toaster position="top-right" />
+            
           </ThemeProvider>
         </AuthProvider>
       </body>

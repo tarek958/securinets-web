@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { connectToDatabase as connectToDb } from '@/lib/db';
 import { ObjectId } from 'mongodb';
+import { getIO } from '@/lib/socket';
 
 // Handle join requests (accept/reject)
 export async function POST(request) {
@@ -30,7 +33,7 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
+    const { db } = await connectToDb();
 
     // Verify the user is a team member
     const team = await db.collection('teams').findOne({
@@ -65,6 +68,108 @@ export async function POST(request) {
     }
 
     if (action === 'accept') {
+      // Get joining user's solved challenges and points
+      const joiningUser = await db.collection('users').findOne(
+        { _id: new ObjectId(userId) },
+        { projection: { solvedChallenges: 1, username: 1 } }
+      );
+
+      // Get user's points from solves
+      const userSolves = await db.collection('solves')
+        .find({ 
+          $or: [
+            { userId: userId },
+            { userId: joiningUser._id.toString() }
+          ]
+        })
+        .toArray();
+
+      console.log('Found solves for joining user:', {
+        userId,
+        userIdFromDb: joiningUser._id.toString(),
+        solvesCount: userSolves.length,
+        solves: userSolves.map(s => ({ points: s.points, userId: s.userId }))
+      });
+
+      const userPoints = userSolves.reduce((sum, solve) => sum + (solve.points || 0), 0);
+
+      console.log('Joining user points:', {
+        userId,
+        username: joiningUser.username,
+        points: userPoints,
+        solvedChallenges: joiningUser.solvedChallenges?.length
+      });
+
+      // Get all challenges solved by the joining user
+      const userSolvedChallenges = joiningUser.solvedChallenges || [];
+      
+      // Get all challenges currently solved by the team
+      const teamSolvedChallenges = new Set(
+        (team.solvedChallenges || []).map(id => id.toString())
+      );
+
+      console.log('Team before update:', {
+        teamId: team._id,
+        teamPoints: team.points,
+        solvedChallenges: team.solvedChallenges?.length
+      });
+
+      // Find new challenges that only the joining user has solved
+      const newSolves = userSolvedChallenges.filter(
+        challengeId => !teamSolvedChallenges.has(challengeId.toString())
+      );
+
+      let additionalPoints = 0;
+      if (newSolves.length > 0) {
+        // Get points for new challenges
+        const newChallenges = await db.collection('challenges')
+          .find({ _id: { $in: newSolves.map(id => new ObjectId(id)) } })
+          .project({ points: 1 })
+          .toArray();
+
+        additionalPoints = newChallenges.reduce((sum, challenge) => sum + (challenge.points || 0), 0);
+
+        console.log('New solves:', {
+          count: newSolves.length,
+          additionalPoints
+        });
+
+        // Update team's total points and solved challenges
+        await db.collection('teams').updateOne(
+          { _id: new ObjectId(teamId) },
+          { 
+            $inc: { points: additionalPoints },
+            $addToSet: { 
+              solvedChallenges: { $each: newSolves }
+            }
+          }
+        );
+
+        // Mark these challenges as solved by team for all members
+        const io = getIO();
+        if (io) {
+          team.members.forEach(memberId => {
+            io.to(memberId).emit('teamChallengesUpdate', {
+              newSolves: newSolves,
+              solvedByUserId: userId
+            });
+          });
+        }
+      }
+
+      // Add user's existing points to team points
+      console.log('Adding user points to team:', {
+        userPoints,
+        additionalPoints,
+        currentTeamPoints: team.points,
+        newTotal: (team.points || 0) + userPoints + additionalPoints
+      });
+
+      await db.collection('teams').updateOne(
+        { _id: new ObjectId(teamId) },
+        { $inc: { points: userPoints } }
+      );
+
       // Move user from pending to members
       await db.collection('teams').updateOne(
         { _id: new ObjectId(teamId) },
@@ -85,9 +190,24 @@ export async function POST(request) {
         }
       );
 
+      // Get updated team data for verification
+      const updatedTeam = await db.collection('teams').findOne({ _id: new ObjectId(teamId) });
+      console.log('Updated team:', {
+        teamId: updatedTeam._id,
+        points: updatedTeam.points,
+        solvedChallenges: updatedTeam.solvedChallenges?.length
+      });
+
       return NextResponse.json({
         success: true,
-        message: 'User accepted to team'
+        message: 'User accepted to team',
+        newSolves: newSolves.length > 0 ? newSolves : undefined,
+        additionalPoints: additionalPoints + userPoints,
+        debug: {
+          userPoints,
+          additionalPoints,
+          totalPoints: additionalPoints + userPoints
+        }
       });
     } else {
       // Remove user from pending members
@@ -133,7 +253,7 @@ export async function GET(request) {
       }, { status: 400 });
     }
 
-    const { db } = await connectToDatabase();
+    const { db } = await connectToDb();
 
     // Verify the user is a team member
     const team = await db.collection('teams').findOne({

@@ -174,12 +174,21 @@ export async function GET(request) {
       leaderId: team.leaderId,
       members: memberStats,
       pendingMembers: pendingMembers,
+      points: team.points || 0,
       stats: {
         totalPoints,
         uniqueChallengesCount: uniqueChallenges.size,
         solves: enhancedSolves
       }
     };
+
+    console.log('Team data:', {
+      teamId: team._id,
+      leaderId: team.leaderId,
+      leaderIdType: typeof team.leaderId,
+      points: team.points || 0,
+      solvesPoints: totalPoints
+    });
 
     return NextResponse.json({ 
       success: true,

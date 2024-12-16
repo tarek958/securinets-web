@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/Providers';
 import MatrixBackground from '@/components/MatrixBackground';
@@ -10,6 +10,7 @@ export default function EditChallenge({ params }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const unwrappedParams = use(params);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -38,13 +39,16 @@ export default function EditChallenge({ params }) {
     }
 
     fetchChallenge();
-  }, [user, router, params.challengeId]);
+  }, [user, router, unwrappedParams.challengeId]);
 
   const fetchChallenge = async () => {
     try {
-      const response = await fetch(`/api/admin/challenges/${params.challengeId}`);
+      const response = await fetch(`/api/admin/challenges/${unwrappedParams.challengeId}`);
       if (!response.ok) throw new Error('Failed to fetch challenge');
       const challenge = await response.json();
+
+      // Transform hints array to match the expected format
+      const transformedHints = challenge.hints?.map(h => h.content || h) || [];
 
       setFormData({
         title: challenge.title,
@@ -53,7 +57,7 @@ export default function EditChallenge({ params }) {
         difficulty: challenge.difficulty,
         points: challenge.points,
         flag: challenge.flag,
-        hints: challenge.hints || [],
+        hints: transformedHints,
         existingFiles: challenge.files || [],
         files: [],
         status: challenge.status
@@ -133,17 +137,22 @@ export default function EditChallenge({ params }) {
       formDataToSend.append('points', formData.points);
       formDataToSend.append('flag', formData.flag);
       formDataToSend.append('status', formData.status);
+      
+      // Transform hints to include content field
       formData.hints.forEach((hint, index) => {
         if (hint.trim()) {
-          formDataToSend.append(`hints[${index}]`, hint);
+          formDataToSend.append(`hints[${index}][content]`, hint);
+          formDataToSend.append(`hints[${index}][cost]`, "0"); // Default cost to 0
         }
       });
+
+      // Handle files
       formData.files.forEach((file) => {
         formDataToSend.append('files', file);
       });
       formDataToSend.append('existingFiles', JSON.stringify(formData.existingFiles));
 
-      const response = await fetch(`/api/admin/challenges/${params.challengeId}`, {
+      const response = await fetch(`/api/admin/challenges/${unwrappedParams.challengeId}`, {
         method: 'PATCH',
         body: formDataToSend,
       });

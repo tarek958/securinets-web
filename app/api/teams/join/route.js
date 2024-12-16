@@ -77,8 +77,67 @@ export async function POST(request) {
       { $addToSet: { [updateField]: user.id } }
     );
 
-    // If joining with invite code, update user's team information
+    // If joining with invite code, update user's team information and handle solved challenges
     if (!team.isPublic && inviteCode) {
+      // Get user's solved challenges
+      const joiningUser = await db.collection('users').findOne(
+        { _id: new ObjectId(user.id) },
+        { projection: { solvedChallenges: 1 } }
+      );
+
+      // Get all team members' solved challenges
+      const teamMembers = await db.collection('users')
+        .find({ _id: { $in: team.members.map(id => new ObjectId(id)) } })
+        .project({ solvedChallenges: 1 })
+        .toArray();
+
+      // Get all challenges solved by the joining user
+      const userSolvedChallenges = joiningUser.solvedChallenges || [];
+      
+      // Get all challenges solved by team members
+      const teamSolvedChallenges = new Set(
+        teamMembers.flatMap(member => member.solvedChallenges || [])
+          .map(id => id.toString())
+      );
+
+      // Find new challenges that only the joining user has solved
+      const newSolves = userSolvedChallenges.filter(
+        challengeId => !teamSolvedChallenges.has(challengeId.toString())
+      );
+
+      if (newSolves.length > 0) {
+        // Get points for new challenges
+        const newChallenges = await db.collection('challenges')
+          .find({ _id: { $in: newSolves.map(id => new ObjectId(id)) } })
+          .project({ points: 1 })
+          .toArray();
+
+        const additionalPoints = newChallenges.reduce((sum, challenge) => sum + (challenge.points || 0), 0);
+
+        // Update team's total points and solved challenges
+        await db.collection('teams').updateOne(
+          { _id: new ObjectId(teamId) },
+          { 
+            $inc: { points: additionalPoints },
+            $addToSet: { 
+              solvedChallenges: { $each: newSolves.map(id => id.toString()) }
+            }
+          }
+        );
+
+        // Mark these challenges as solved by team for all members
+        const io = getIO();
+        if (io) {
+          team.members.forEach(memberId => {
+            io.to(memberId).emit('teamChallengesUpdate', {
+              newSolves: newSolves,
+              solvedByUserId: user.id
+            });
+          });
+        }
+      }
+
+      // Update user's team information
       await db.collection('users').updateOne(
         { _id: new ObjectId(user.id) },
         { 

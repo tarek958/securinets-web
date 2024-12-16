@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlusIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 
 export default function ManageChallenges() {
@@ -10,6 +10,8 @@ export default function ManageChallenges() {
   const [challenges, setChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedChallenge, setSelectedChallenge] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
     fetchChallenges();
@@ -38,6 +40,11 @@ export default function ManageChallenges() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePreview = (challenge) => {
+    setSelectedChallenge(challenge);
+    setShowPreview(true);
   };
 
   const handleDeleteChallenge = async (challengeId) => {
@@ -182,6 +189,12 @@ export default function ManageChallenges() {
                       {new Date(challenge.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handlePreview(challenge)}
+                        className="text-red-400 hover:text-red-300 mr-4"
+                      >
+                        Preview
+                      </button>
                       <Link
                         href={`/admin/challenges/${challenge._id}/edit`}
                         className="text-red-400 hover:text-red-300 mr-4"
@@ -201,6 +214,103 @@ export default function ManageChallenges() {
             </table>
           </div>
         </div>
+
+        {/* Challenge Preview Modal */}
+        {showPreview && selectedChallenge && (
+          <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50 overflow-hidden">
+            <div className="relative bg-[#0a0a0a] border-2 border-red-500 rounded-xl shadow-2xl shadow-red-900/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 hover:scale-[1.01]">
+              {/* Glitch effect overlay */}
+              <div className="absolute inset-0 pointer-events-none opacity-20 animate-glitch-anim">
+                <div className="absolute inset-0 bg-red-500 mix-blend-overlay"></div>
+                <div className="absolute inset-0 bg-crimson-500 mix-blend-color-dodge opacity-30"></div>
+              </div>
+
+              <div className="relative p-6 space-y-6">
+                {/* Close button */}
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-300"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+
+                {/* Challenge Title and Tags */}
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-2">{selectedChallenge.title}</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm">
+                      {selectedChallenge.category}
+                    </span>
+                    <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm">
+                      {selectedChallenge.difficulty}
+                    </span>
+                    <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm">
+                      {selectedChallenge.points} pts
+                    </span>
+                  </div>
+                </div>
+
+                {/* Challenge Description */}
+                <div className="bg-black/40 rounded-lg p-4">
+                  <p className="text-gray-300 whitespace-pre-wrap">{selectedChallenge.description}</p>
+                </div>
+
+                {/* Challenge Files */}
+                {selectedChallenge.files && selectedChallenge.files.length > 0 && (
+                  <div className="font-mono text-gray-300 bg-black/40 p-4 rounded-lg border border-blue-500/30">
+                    <h3 className="text-lg font-bold text-blue-400 mb-2">Challenge Files</h3>
+                    <ul className="list-disc list-inside">
+                      {selectedChallenge.files.map((file, index) => (
+                        <li key={index}>
+                          <span className="text-blue-400">{file.name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Challenge Hints */}
+                {selectedChallenge.hints && selectedChallenge.hints.length > 0 && (
+                  <div className="font-mono text-gray-300 bg-black/40 p-4 rounded-lg border border-yellow-500/30">
+                    <h3 className="text-lg font-bold text-yellow-400 mb-2">Hints</h3>
+                    <ul className="space-y-2">
+                      {selectedChallenge.hints.map((hint, index) => (
+                        <li key={index} className="bg-black/40 p-2 rounded">
+                          {hint.content}
+                          {hint.cost && (
+                            <span className="ml-2 text-sm text-yellow-500">
+                              ({hint.cost} points)
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Flag Input (Preview) */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Flag Submission (Preview)
+                  </label>
+                  <div className="mt-1 relative">
+                    <input
+                      type="text"
+                      disabled
+                      placeholder="securinets{flag}"
+                      className="w-full px-4 py-2 bg-gray-900/60 border border-red-500/30 rounded-lg text-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    This is how users will see the challenge. The flag input is disabled in preview mode.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

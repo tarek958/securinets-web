@@ -14,6 +14,7 @@ export default function ChallengesPage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [categories, setCategories] = useState([]);
   const { user } = useAuth();
   const [selectedChallenge, setSelectedChallenge] = useState(null);
   const [countdownExpired, setCountdownExpired] = useState(false);
@@ -30,6 +31,7 @@ export default function ChallengesPage() {
         }
 
         const data = await res.json();
+        
         setChallenges(data);
       } catch (err) {
         setError(err.message);
@@ -38,27 +40,20 @@ export default function ChallengesPage() {
       }
     };
 
-    fetchChallenges();
-  }, []);
-
-  useEffect(() => {
-    const checkCountdown = async () => {
+    const fetchCategories = async () => {
       try {
-        const response = await fetch('/api/admin/countdown');
-        const data = await response.json();
-        if (data.countdown) {
-          const targetDate = new Date(data.countdown.targetDate);
-          const now = new Date();
-          setCountdownExpired(now >= targetDate);
+        const res = await fetch('/api/categories');
+        if (res.ok) {
+          const data = await res.json();
+          setCategories(['All', ...data]);
         }
       } catch (error) {
-        console.error('Error checking countdown:', error);
+        console.error('Error fetching categories:', error);
       }
     };
 
-    checkCountdown();
-    const interval = setInterval(checkCountdown, 1000);
-    return () => clearInterval(interval);
+    fetchChallenges();
+    fetchCategories();
   }, []);
 
   if (loading) {
@@ -86,9 +81,7 @@ export default function ChallengesPage() {
     );
   }
 
-  const categories = ['All', 'Web', 'Pwn', 'Reverse', 'Crypto', 'Forensics', 'Misc'];
   const difficulties = ['All', 'Easy', 'Medium', 'Hard', 'Insane'];
-
   const filteredChallenges = challenges.filter(challenge => {
     const matchesCategory = selectedCategory === 'All' || challenge.category === selectedCategory;
     const matchesDifficulty = selectedDifficulty === 'All' || challenge.difficulty === selectedDifficulty;
@@ -109,9 +102,17 @@ export default function ChallengesPage() {
 
   const isSolved = (challenge) => {
     if (!user || !user.solvedChallenges) return false;
-    return user.solvedChallenges.some(solve => 
+    
+    // Check if user has solved it directly
+    const userSolved = user.solvedChallenges.some(solve => 
       solve === challenge._id.toString()
     );
+
+    // If user solved it, return true
+    if (userSolved) return true;
+
+    // Check if it's solved by team
+    return challenge.solvedByTeam === true;
   };
 
   const ChallengeModal = ({ challenge, onClose }) => {
@@ -138,6 +139,21 @@ export default function ChallengesPage() {
           setSubmitError('Please log in to submit flags');
           setSubmitLoading(false);
           return;
+        }
+
+        const countdownResponse = await fetch('/api/admin/countdown');
+        const countdownData = await countdownResponse.json();
+        if (countdownData.countdown) {
+          const targetDate = new Date(countdownData.countdown.targetDate);
+          const now = new Date();
+          const isExpired = now >= targetDate;
+          setCountdownExpired(isExpired);
+          
+          if (isExpired) {
+            setSubmitError('The CTF has ended. Flag submissions are no longer accepted.');
+            setSubmitLoading(false);
+            return;
+          }
         }
 
         if (countdownExpired) {
@@ -365,8 +381,16 @@ export default function ChallengesPage() {
   };
 
   const ChallengeCard = ({ challenge, onSelect }) => {
-    // Use the isSolved function to determine challenge status
-    const solved = isSolved(challenge);
+    // Check both user solves and team solves
+    const userSolved = user?.solvedChallenges?.some(solve => solve === challenge._id.toString()) || false;
+    
+    // Check if challenge is solved by user's team
+    const isTeamSolved = challenge.solvedTeams?.some(
+      solvedTeam => solvedTeam.id === user?.team?.id
+    ) || false;
+    
+    
+    const solved = userSolved || isTeamSolved;
 
     return (
       <div 
@@ -403,7 +427,7 @@ export default function ChallengesPage() {
               {challenge.title}
               {solved && (
                 <span className="ml-2 text-xs bg-green-700 text-white px-2 py-1 rounded-full">
-                  SOLVED
+                  {userSolved ? 'SOLVED' : 'TEAM SOLVED'}
                 </span>
               )}
             </h2>
@@ -416,7 +440,6 @@ export default function ChallengesPage() {
               `}>
                 {challenge.difficulty ? challenge.difficulty.toUpperCase() : 'UNKNOWN'}
               </span>
-              
               {/* Points Tag */}
               <span className={`
                 inline-block px-2 py-1 text-xs font-mono 
@@ -471,49 +494,53 @@ export default function ChallengesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900/70 relative">
+    <>
       <MatrixBackground />
       <div className="relative z-10">
         <div className="max-w-8xl mx-auto p-4 sm:p-6 lg:p-8">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
             {/* Filters Section */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="bg-gray-800/80 rounded-lg p-6 backdrop-blur-sm">
-                <h2 className="text-xl font-semibold text-white mb-4">Filters</h2>
+              <div className="bg-black/80 backdrop-blur-sm border border-red-500/30 rounded-lg p-6">
+                <h2 className="text-2xl font-bold text-red-500 mb-4 font-mono glow-text">Filters</h2>
                 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-red-400/80 mb-2 font-mono">
                       Category
                     </label>
                     <select
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="w-full bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                      className="w-full bg-black/60 text-red-400 rounded-md px-3 py-2 border border-red-500/30 focus:border-red-500 focus:ring-1 focus:ring-red-500 font-mono"
                     >
                       {categories.map(category => (
-                        <option key={category} value={category}>{category}</option>
+                        <option key={category} value={category} className="bg-black">
+                          {category === 'All' ? 'All Categories' : category}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-red-400/80 mb-2 font-mono">
                       Difficulty
                     </label>
                     <select
                       value={selectedDifficulty}
                       onChange={(e) => setSelectedDifficulty(e.target.value)}
-                      className="w-full bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                      className="w-full bg-black/60 text-red-400 rounded-md px-3 py-2 border border-red-500/30 focus:border-red-500 focus:ring-1 focus:ring-red-500 font-mono"
                     >
                       {difficulties.map(difficulty => (
-                        <option key={difficulty} value={difficulty}>{difficulty}</option>
+                        <option key={difficulty} value={difficulty} className="bg-black">
+                          {difficulty}
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-red-400/80 mb-2 font-mono">
                       Search
                     </label>
                     <input
@@ -521,13 +548,14 @@ export default function ChallengesPage() {
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search challenges..."
-                      className="w-full bg-gray-700 text-white rounded-md px-3 py-2 border border-gray-600 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                      className="w-full bg-black/60 text-red-400 rounded-md px-3 py-2 border border-red-500/30 focus:border-red-500 focus:ring-1 focus:ring-red-500 font-mono placeholder-red-400/50"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gray-800/80 rounded-lg p-6 backdrop-blur-sm">
+              <div className="bg-black/80 backdrop-blur-sm border border-red-500/30 rounded-lg p-6">
+                
                 <Leaderboard />
               </div>
             </div>
@@ -554,6 +582,6 @@ export default function ChallengesPage() {
           onClose={() => setSelectedChallenge(null)}
         />
       )}
-    </div>
+    </>
   );
 }

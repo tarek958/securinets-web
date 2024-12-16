@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import MatrixBackground from '@/components/MatrixBackground';
 
@@ -14,8 +14,32 @@ export default function CreateChallenge() {
     flag: '',
     points: '',
     hints: [''],
-    files: []
+    files: [],
+    active: 'false',
+    status: 'inactive'
   });
+  const [categories, setCategories] = useState([]);
+  const [categoryError, setCategoryError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/categories');
+      if (res.ok) {
+        const data = await res.json();
+        setCategories([
+          { value: '', display: 'Select Category' },
+          ...data.map(cat => ({ value: cat, display: cat }))
+        ]);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   const handleHintChange = (index, value) => {
     const newHints = [...formData.hints];
@@ -50,6 +74,7 @@ export default function CreateChallenge() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true);
 
     try {
       const formDataToSend = new FormData();
@@ -61,6 +86,7 @@ export default function CreateChallenge() {
       formDataToSend.append('difficulty', formData.difficulty);
       formDataToSend.append('points', formData.points);
       formDataToSend.append('flag', formData.flag);
+      formDataToSend.append('status', formData.status);
       
       // Add hints
       formData.hints.forEach((hint, index) => {
@@ -84,14 +110,15 @@ export default function CreateChallenge() {
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
-        router.push('/admin/challenges');
-      } else {
-        setError(data.error || 'Failed to create challenge');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create challenge');
       }
-    } catch (error) {
-      setError('An error occurred while creating the challenge');
-      console.error('Error:', error);
+
+      router.push('/admin/challenges');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -138,7 +165,7 @@ export default function CreateChallenge() {
               />
             </div>
 
-            {/* Category */}
+            {/* Category Selection */}
             <div>
               <label htmlFor="category" className="block text-sm font-medium text-gray-300 mb-2">
                 Category
@@ -150,17 +177,11 @@ export default function CreateChallenge() {
                 className="w-full px-4 py-2 bg-gray-900/60 border border-red-500/30 rounded-lg text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
                 required
               >
-                <option value="" className="bg-gray-900">Select Category</option>
-                <option value="Web" className="bg-gray-900">Web</option>
-                <option value="Pwn" className="bg-gray-900">Pwn</option>
-                <option value="Reverse" className="bg-gray-900">Reverse Engineering</option>
-                <option value="Crypto" className="bg-gray-900">Cryptography</option>
-                <option value="Forensics" className="bg-gray-900">Digital Forensics</option>
-                <option value="OSINT" className="bg-gray-900">OSINT</option>
-                <option value="Steganography" className="bg-gray-900">Steganography</option>
-                <option value="Mobile" className="bg-gray-900">Mobile Security</option>
-                <option value="Hardware" className="bg-gray-900">Hardware</option>
-                <option value="Misc" className="bg-gray-900">Miscellaneous</option>
+                {categories.map((cat) => (
+                  <option key={cat.value} value={cat.value} className="bg-gray-900">
+                    {cat.display}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -181,6 +202,21 @@ export default function CreateChallenge() {
                 <option value="Medium" className="bg-gray-900">Medium</option>
                 <option value="Hard" className="bg-gray-900">Hard</option>
                 <option value="Insane" className="bg-gray-900">Insane</option>
+              </select>
+            </div>
+
+            {/* Status */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Status
+              </label>
+              <select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                className="w-full px-4 py-2 bg-gray-900/60 border border-red-500/30 rounded-lg text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              >
+                <option value="inactive" className="bg-gray-900">Inactive</option>
+                <option value="active" className="bg-gray-900">Active</option>
               </select>
             </div>
 
@@ -274,6 +310,8 @@ export default function CreateChallenge() {
                 Add Hint
               </button>
             </div>
+
+         
 
             {/* Submit Button */}
             <div className="flex justify-end">

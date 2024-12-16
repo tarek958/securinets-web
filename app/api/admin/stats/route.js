@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/db';
 import User from '@/models/User';
 import Challenge from '@/models/Challenge';
 import Post from '@/models/Post';
+import Category from '@/models/Category';
 
 export const dynamic = 'force-dynamic'; // Ensure this route is treated dynamically
 
@@ -29,12 +30,13 @@ export async function GET(request) {
     await connectDB();
 
     // Fetch counts from the database
-    const [totalUsers, totalPosts, totalChallenges, totalWriteups, activeChallenges] = await Promise.all([
+    const [totalUsers, totalPosts, totalChallenges, totalWriteups, activeChallenges, totalCategories] = await Promise.all([
       User.countDocuments(),
       Post.countDocuments(),
       Challenge.countDocuments(),
       Challenge.countDocuments({ writeup: { $exists: true, $ne: null } }),
       Challenge.countDocuments({ active: true }),
+      Category.countDocuments(),
     ]);
 
     // Return success response
@@ -46,14 +48,15 @@ export async function GET(request) {
         totalChallenges,
         activeChallenges,
         totalWriteups,
+        totalCategories,
       },
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch stats',
+      { 
+        success: false, 
+        error: 'Failed to fetch stats', 
         message: process.env.NODE_ENV === 'development' ? error.message : undefined,
       },
       { status: 500 }

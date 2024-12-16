@@ -81,24 +81,61 @@ export async function PATCH(request, context) {
     const points = parseInt(formData.get('points'));
     const flag = formData.get('flag');
     const status = formData.get('status');
-    const hints = formData.getAll('hints[]').filter(hint => hint.trim());
+    
+    // Process hints with content and cost
+    const hints = [];
+    let index = 0;
+    while (formData.has(`hints[${index}][content]`)) {
+      const content = formData.get(`hints[${index}][content]`);
+      const cost = parseInt(formData.get(`hints[${index}][cost]`) || '0');
+      if (content && content.trim()) {
+        hints.push({ content, cost });
+      }
+      index++;
+    }
+    
     const existingFiles = JSON.parse(formData.get('existingFiles') || '[]');
 
+    // Process new files if any
+    const files = formData.getAll('files');
+    const processedFiles = await Promise.all(files.map(async (file) => {
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      
+      return {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        data: buffer.toString('base64')
+      };
+    }));
+
+    // Combine existing and new files
+    const allFiles = [...existingFiles, ...processedFiles];
+
     // Determine update fields
-    const updateFields = {};
-    if (title) updateFields.title = title;
-    if (description) updateFields.description = description;
-    if (category) updateFields.category = category;
-    if (difficulty) updateFields.difficulty = difficulty;
-    if (points) updateFields.points = points;
-    if (flag) updateFields.flag = flag;
-    if (status) updateFields.status = status;
-    if (hints) updateFields.hints = hints;
-    if (existingFiles) updateFields.files = existingFiles;
+    const updateFields = {
+      title,
+      description,
+      category,
+      difficulty,
+      points,
+      flag,
+      status,
+      hints,
+      files: allFiles,
+      updatedAt: new Date()
+    };
+
+    // Remove undefined fields
+    Object.keys(updateFields).forEach(key => 
+      updateFields[key] === undefined && delete updateFields[key]
+    );
 
     // Await params from context
     const { challengeId } = await context.params;
     console.log('Updating challenge with ID:', challengeId);
+    console.log('Update fields:', updateFields);
 
     const result = await db.collection('challenges').updateOne(
       { _id: new ObjectId(challengeId) },

@@ -34,6 +34,12 @@ const challengeSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
+  status: {
+    type: String,
+    enum: ['active', 'inactive'],
+    default: 'inactive',
+    required: true
+  },
   solvedBy: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -52,10 +58,6 @@ const challengeSchema = new mongoose.Schema({
     content: String,
     cost: Number,
   }],
-  isActive: {
-    type: Boolean,
-    default: false,
-  },
   createdAt: {
     type: Date,
     default: Date.now,

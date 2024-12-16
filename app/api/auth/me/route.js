@@ -24,6 +24,14 @@ export async function GET() {
       return Response.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Get user's team information
+    const team = await db.collection('teams').findOne({
+      $or: [
+        { leaderId: user._id.toString() },
+        { members: user._id.toString() }
+      ]
+    });
+
     return Response.json({
       user: {
         id: user._id.toString(),
@@ -31,7 +39,13 @@ export async function GET() {
         username: user.username,
         role: user.role || 'user',
         solvedChallenges: user.solvedChallenges || [],
-        ctfPoints: user.ctfPoints || 0
+        ctfPoints: user.ctfPoints || 0,
+        team: team ? {
+          id: team._id.toString(),
+          name: team.name,
+          leaderId: team.leaderId,
+          members: team.members
+        } : null
       }
     });
   } catch (error) {

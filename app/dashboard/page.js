@@ -9,7 +9,9 @@ import {
   ChatBubbleLeftIcon,
   UserGroupIcon,
   AcademicCapIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline';
+import TeamManagement from '../components/TeamManagement';
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -77,6 +79,13 @@ export default function Dashboard() {
       icon: UserGroupIcon,
       href: '/profile',
     },
+    {
+      name: 'Team',
+      value: 'Manage',
+      description: 'View and manage your team',
+      icon: UsersIcon,
+      href: '/team',
+    },
   ];
 
   const recentActivity = [
@@ -105,7 +114,7 @@ export default function Dashboard() {
           
           {/* Stats */}
           <div className="mt-8">
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
               {cards.map((card) => (
                 <Link key={card.name} href={card.href}>
                   <div className="relative overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:px-6 sm:py-6 hover:shadow-lg transition-shadow">

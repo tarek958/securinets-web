@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useRef, useEffect } from 'react';
 import { Dialog, Disclosure, Popover, Transition } from '@headlessui/react';
 import Link from 'next/link';
 import {
@@ -24,6 +24,10 @@ import NavbarCountdown from './NavbarCountdown';
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isTeamMenuOpen, setIsTeamMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const teamMenuRef = useRef(null);
+  const userMenuRef = useRef(null);
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { isDark } = useTheme();
@@ -39,8 +43,22 @@ export default function Navbar() {
     { name: 'STATS', href: '/statistics', icon: ChartBarIcon },
   ];
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (teamMenuRef.current && !teamMenuRef.current.contains(event.target)) {
+        setIsTeamMenuOpen(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <header className="bg-black border-b border-red-500/20">
+    <header className="bg-black border-b border-red-500/20 fixed w-full top-0 z-[100]">
       <nav className="mx-auto flex max-w-7xl items-center justify-between p-4 lg:px-8" aria-label="Global">
         <div className="flex lg:flex-1">
           <Link href="/" className="-m-1.5 p-5">
@@ -137,46 +155,39 @@ export default function Navbar() {
 
         <div className="hidden lg:flex lg:flex-1 lg:justify-end items-center space-x-4">
           {user ? (
-            <Popover className="relative">
-              {({ open }) => (
-                <>
-                  <Popover.Button className="group flex items-center gap-2 text-sm font-mono font-semibold text-red-500/70 hover:text-red-500 transition-colors relative outline-none">
-                    <UserCircleIcon className="h-6 w-6" />
-                    
-                    <ChevronDownIcon className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-                  </Popover.Button>
+            <div className="relative" ref={userMenuRef}>
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="group flex items-center gap-2 text-sm font-mono font-semibold text-red-500/70 hover:text-red-500 transition-colors relative outline-none"
+              >
+                <UserCircleIcon className="h-6 w-6" />
+                
+                <ChevronDownIcon className={`h-4 w-4 transition ${isUserMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+              </button>
 
-                  <Transition
-                    as={Fragment}
-                    enter="transition ease-out duration-200"
-                    enterFrom="opacity-0 translate-y-1"
-                    enterTo="opacity-100 translate-y-0"
-                    leave="transition ease-in duration-150"
-                    leaveFrom="opacity-100 translate-y-0"
-                    leaveTo="opacity-0 translate-y-1"
-                  >
-                    <Popover.Panel className="absolute right-0 z-10 mt-5 w-48">
-                      <div className="overflow-hidden rounded-xl bg-gray-900 shadow-lg ring-1 ring-red-500/20">
-                        <div className="p-2">
-                          <Link
-                            href="/profile"
-                            className="block p-2 hover:bg-red-500/10 rounded-lg transition-colors text-red-500/70 hover:text-red-500 font-mono text-sm"
-                          >
-                            &gt; Profile
-                          </Link>
-                          <button
-                            onClick={logout}
-                            className="block w-full text-left p-2 hover:bg-red-500/10 rounded-lg transition-colors text-red-500/70 hover:text-red-500 font-mono text-sm"
-                          >
-                            &gt; Logout
-                          </button>
-                        </div>
-                      </div>
-                    </Popover.Panel>
-                  </Transition>
-                </>
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-gray-900 ring-1 ring-red-500/20 z-[110]">
+                  <div className="p-2">
+                    <Link
+                      href="/profile"
+                      className="block p-2 hover:bg-red-500/10 rounded-lg transition-colors text-red-500/70 hover:text-red-500 font-mono text-sm"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      &gt; Profile
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        logout();
+                      }}
+                      className="block w-full text-left p-2 hover:bg-red-500/10 rounded-lg transition-colors text-red-500/70 hover:text-red-500 font-mono text-sm"
+                    >
+                      &gt; Logout
+                    </button>
+                  </div>
+                </div>
               )}
-            </Popover>
+            </div>
           ) : (
             <Link
               href="/auth/login"

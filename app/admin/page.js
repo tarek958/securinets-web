@@ -10,7 +10,8 @@ import {
   ChatBubbleLeftRightIcon, 
   FlagIcon,
   DocumentTextIcon,
-  CommandLineIcon
+  CommandLineIcon,
+  TagIcon
 } from '@heroicons/react/24/outline';
 
 export default function AdminPage() {
@@ -21,7 +22,8 @@ export default function AdminPage() {
     totalPosts: 0,
     totalChallenges: 0,
     activeChallenges: 0,
-    totalWriteups: 0
+    totalWriteups: 0,
+    totalCategories: 0
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -112,6 +114,14 @@ export default function AdminPage() {
       color: 'bg-red-500/10'
     },
     {
+      name: 'Categories_DB',
+      value: stats.totalCategories,
+      description: 'Challenge categories management',
+      icon: TagIcon,
+      href: '/admin/categories',
+      color: 'bg-red-500/10'
+    },
+    {
       name: 'Writeups_DB',
       value: stats.totalWriteups,
       description: 'Documented solution reports',
@@ -153,7 +163,7 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <p className="text-2xl font-bold font-mono text-red-500">
-                  {card.value.toString().padStart(2, '0')}
+                  {(card.value || 0).toString().padStart(2, '0')}
                 </p>
               </div>
               <div className="mt-4 text-sm text-red-500/50 font-mono group-hover:text-red-500/70 transition-colors">

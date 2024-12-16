@@ -84,18 +84,22 @@ export async function POST(request) {
       flag: formData.get('flag'),
       hints: formData.getAll('hints[]').filter(hint => hint.trim()),
       files: processedFiles,
-      status: 'active',
+      status: formData.get('status') || 'inactive', // Use status from form data or default to inactive
       createdAt: new Date(),
       createdBy: user._id,
       solvedBy: []
     };
+
+    // Log the challenge status for debugging
+    console.log('Creating challenge with status:', challenge.status);
 
     const result = await db.collection('challenges').insertOne(challenge);
 
     return NextResponse.json({
       success: true,
       message: 'Challenge created successfully',
-      challengeId: result.insertedId
+      challengeId: result.insertedId,
+      status: challenge.status
     });
   } catch (error) {
     console.error('Error creating challenge:', error);

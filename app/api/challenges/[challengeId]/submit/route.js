@@ -59,6 +59,33 @@ export async function POST(request, { params }) {
       }, { status: 400 });
     }
 
+    // Get user's team
+    const team = await db.collection('teams').findOne({
+      $or: [
+        { leaderId: userCheck._id.toString() },
+        { members: userCheck._id.toString() }
+      ]
+    });
+
+    if (team) {
+      // Check if any team member has already solved this challenge
+      const teamMembers = [...team.members, team.leaderId].map(id => 
+        typeof id === 'string' ? id : id.toString()
+      );
+
+      const teamSolves = await db.collection('users').findOne({
+        _id: { $in: teamMembers.map(id => new ObjectId(id)) },
+        solvedChallenges: new ObjectId(challengeId)
+      });
+
+      if (teamSolves) {
+        return NextResponse.json({ 
+          success: false, 
+          message: 'This challenge has already been solved by your team' 
+        }, { status: 400 });
+      }
+    }
+
     // Verify flag
     if (flag !== challenge.flag) {
       return NextResponse.json({ 
@@ -70,14 +97,6 @@ export async function POST(request, { params }) {
     // Calculate current points
     const currentPoints = userCheck.ctfPoints || 0;
     const newPoints = currentPoints + challenge.points;
-
-    // Get user's team
-    const team = await db.collection('teams').findOne({
-      $or: [
-        { leaderId: userCheck._id.toString() },
-        { members: userCheck._id.toString() }
-      ]
-    });
 
     // Update user's solved challenges and points
     await db.collection('users').updateOne(
@@ -93,57 +112,49 @@ export async function POST(request, { params }) {
       }
     );
 
+    // Update team points if user is in a team
     if (team) {
-      // Check if any team member has already solved this challenge
+      // Calculate total team points
       const teamMembers = await db.collection('users')
         .find({ 
           _id: { 
-            $in: [...team.members, team.leaderId].map(id => {
-              try {
-                return new ObjectId(id);
-              } catch (error) {
-                return id;
-              }
-            })
+            $in: [...team.members, team.leaderId].map(id => new ObjectId(id))
           }
         })
         .toArray();
 
-      const challengeAlreadySolvedByTeam = teamMembers.some(member => 
-        member.solvedChallenges?.some(id => 
-          id.toString() === challengeId.toString()
-        )
+      const totalTeamPoints = teamMembers.reduce((sum, member) => sum + (member.ctfPoints || 0), 0);
+
+      await db.collection('teams').updateOne(
+        { _id: team._id },
+        { 
+          $set: { 
+            totalPoints: totalTeamPoints,
+            updatedAt: new Date()
+          }
+        }
       );
 
-      if (!challengeAlreadySolvedByTeam) {
-        // Update team's solved challenges, solve details, and points
-        const currentTeamPoints = team.points || 0;
-        await db.collection('teams').updateOne(
-          { _id: team._id },
-          { 
-            $addToSet: { 
-              solvedChallenges: challengeId,
-              solveDetails: {
-                challengeId: challengeId,
-                solvedBy: userCheck._id.toString(),
-                timestamp: new Date(),
-                points: challenge.points
-              }
-            },
-            $set: {
-              points: currentTeamPoints + challenge.points,
-              updatedAt: new Date()
-            }
-          }
-        );
-
-        console.log('Team points updated:', {
-          teamId: team._id.toString(),
-          oldPoints: currentTeamPoints,
-          newPoints: currentTeamPoints + challenge.points,
-          challengePoints: challenge.points
+      // Emit socket event to update team members' UI
+      const io = getIO();
+      if (io) {
+        teamMembers.forEach(member => {
+          io.to(member._id.toString()).emit('challengeSolved', {
+            challengeId,
+            solvedByTeamMember: true
+          });
         });
       }
+    }
+
+    // Emit general challenge update
+    const io = getIO();
+    if (io) {
+      io.emit('challengeUpdate', {
+        _id: challengeId,
+        isSolved: true,
+        solvedByTeam: !!team
+      });
     }
 
     // Log the solve

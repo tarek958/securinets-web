@@ -30,8 +30,6 @@ export default function ChallengesClient({ initialChallenges }) {
     // Ensure socket is only initialized once
     if (!socket) {
       try {
-       
-        
         socket = io(window.location.origin, {
           path: '/api/socket',
           transports: ['websocket', 'polling'],
@@ -59,7 +57,6 @@ export default function ChallengesClient({ initialChallenges }) {
         });
 
         socket.on('challengeUpdate', (updatedChallenge) => {
-      
           setChallenges(prevChallenges => 
             prevChallenges.map(challenge => 
               challenge._id === updatedChallenge._id ? updatedChallenge : challenge
@@ -67,23 +64,32 @@ export default function ChallengesClient({ initialChallenges }) {
           );
         });
 
+        socket.on('challengeSolved', ({ challengeId, solvedByTeamMember }) => {
+          setChallenges(prevChallenges => 
+            prevChallenges.map(challenge => {
+              if (challenge._id === challengeId) {
+                return {
+                  ...challenge,
+                  solvedByTeam: solvedByTeamMember || challenge.solvedByTeam
+                };
+              }
+              return challenge;
+            })
+          );
+        });
+
         // Handle new challenge notifications
         socket.on('challengeAdded', ({ message, challenge }) => {
-      
-          
-          // Add the new challenge to the list
           setChallenges(prev => [challenge, ...prev]);
 
           // Show browser notification if permission is granted
           if (Notification.permission === 'granted') {
-       
             new Notification('New Challenge Available!', {
               body: `${challenge.title} (${challenge.category}) - ${challenge.points} points`,
               icon: '/favicon.ico'
             });
           }
 
-       
           toast.custom((t) => (
             <div
               className={`${
@@ -286,28 +292,27 @@ export default function ChallengesClient({ initialChallenges }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredChallenges.map((challenge) => {
-              const isSolved = challenge.isSolved;
-              const solvedByTeam = challenge.solvedByTeam;
+              const isSolvedByTeam = challenge.isSolved || challenge.solvedByTeam;
               return (
                 <div
                   key={challenge._id}
                   onClick={() => handleChallengeClick(challenge)}
                   className={`relative p-6 rounded-lg cursor-pointer transition-all duration-300 transform hover:scale-105 ${
                     isDark
-                      ? `${isSolved ? 'bg-green-900' : solvedByTeam ? 'bg-blue-900' : 'bg-gray-800'} border ${isSolved ? 'border-green-500' : solvedByTeam ? 'border-blue-500' : 'border-red-500'}`
-                      : `${isSolved ? 'bg-green-100' : solvedByTeam ? 'bg-blue-100' : 'bg-white'} border ${isSolved ? 'border-green-500' : solvedByTeam ? 'border-blue-500' : 'border-gray-300'}`
+                      ? `${isSolvedByTeam ? 'bg-green-900' : 'bg-gray-800'} border ${isSolvedByTeam ? 'border-green-500' : 'border-red-500'}`
+                      : `${isSolvedByTeam ? 'bg-green-100' : 'bg-white'} border ${isSolvedByTeam ? 'border-green-500' : 'border-gray-300'}`
                   }`}
                 >
                   <div className="flex justify-between items-start mb-4">
-                    <h3 className={`text-xl font-bold ${isSolved ? 'text-green-500' : solvedByTeam ? 'text-blue-500' : ''}`}>
+                    <h3 className={`text-xl font-bold ${isSolvedByTeam ? 'text-green-500' : ''}`}>
                       {challenge.title}
                     </h3>
                     <div className="flex items-center space-x-2">
-                      {isSolved && (
+                      {challenge.isSolved && (
                         <span className="text-green-500">✓ Solved</span>
                       )}
-                      {!isSolved && solvedByTeam && (
-                        <span className="text-blue-500">Team Solved</span>
+                      {!challenge.isSolved && challenge.solvedByTeam && (
+                        <span className="text-green-500">✓ Team Solved</span>
                       )}
                       <span className={`px-2 py-1 rounded text-sm ${
                         isDark ? 'bg-gray-700' : 'bg-gray-200'

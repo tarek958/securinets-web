@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-hot-toast';
+import { UsersIcon, UserMinusIcon } from '@heroicons/react/24/outline';
 
 export default function TeamDashboard() {
   const router = useRouter();
@@ -23,13 +24,6 @@ export default function TeamDashboard() {
         setTeam(data.team);
         // Set pending requests directly from team data
         setPendingRequests(data.team.pendingMembers || []);
-        // Check if current user is team leader
-        const userData = localStorage.getItem('userData');
-        if (userData) {
-          const user = JSON.parse(userData);
-          const userId = user.sub || user._id || user.id;
-          setIsLeader(data.team.leaderId === userId);
-        }
       } else {
         setError(data.message);
       }
@@ -104,9 +98,44 @@ export default function TeamDashboard() {
     }
   };
 
+  const handleRemoveMember = async (memberId) => {
+    try {
+      const response = await fetch('/api/teams/members', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          teamId: team._id,
+          memberId,
+          action: 'remove'
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Member removed from team');
+        fetchTeamData();
+      } else {
+        toast.error(data.message || 'Failed to remove member');
+      }
+    } catch (error) {
+      console.error('Error removing member:', error);
+      toast.error('Failed to remove member');
+    }
+  };
+
   useEffect(() => {
+    // Get user data from localStorage
+    const storedUserData = localStorage.getItem('userData');
+    if (storedUserData) {
+      const userData = JSON.parse(storedUserData);
+      const userId = userData.sub || userData._id || userData.id;
+    
+      setIsLeader(team?.leaderId === userId);
+    }
     fetchTeamData();
-  }, []);
+  }, [team?.leaderId]);
 
   if (loading) {
     return (
@@ -135,12 +164,26 @@ export default function TeamDashboard() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Team Dashboard</h1>
-          {pendingRequests.length > 0 && (
-            <div className="bg-yellow-600 px-4 py-2 rounded-lg">
-              {pendingRequests.length} Pending Request{pendingRequests.length !== 1 && 's'}
-            </div>
-          )}
+          <div>
+            <h1 className="text-3xl font-bold">Team Dashboard</h1>
+            <p className="text-gray-400 mt-1">Total Points: {team.points || 0}</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            {isLeader && (
+              <button
+                onClick={() => router.push('/team/manage')}
+                className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition-colors"
+              >
+                <UsersIcon className="h-5 w-5" />
+                <span>Manage Team</span>
+              </button>
+            )}
+            {pendingRequests.length > 0 && (
+              <div className="bg-yellow-600 px-4 py-2 rounded-lg">
+                {pendingRequests.length} Pending Request{pendingRequests.length !== 1 && 's'}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Status Message */}
@@ -164,9 +207,14 @@ export default function TeamDashboard() {
             <h3 className="text-lg font-semibold mb-2">Total Challenges Solved</h3>
             <p className="text-2xl">{team.stats.uniqueChallengesCount || 0}</p>
           </div>
-          <div className="bg-gray-800 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold mb-2">Total Points</h3>
-            <p className="text-2xl">{team.stats.totalPoints || 0}</p>
+          <div className="bg-gray-800 p-4 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors" onClick={() => router.push('/team/manage')}>
+            <h3 className="text-lg font-semibold mb-2 flex items-center justify-between">
+              Team Management
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+            </h3>
+            <p className="text-sm opacity-75">Manage team members and settings</p>
           </div>
         </div>
 
@@ -261,37 +309,31 @@ export default function TeamDashboard() {
         )}
 
         {/* Team Members Section */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-6">Team Members</h3>
+        <div className="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
+          <h3 className="text-xl font-semibold mb-4 text-white">Team Members</h3>
           <div className="space-y-4">
-            {team.members.map((member) => (
-              <div
-                key={member._id}
-                className="flex items-center justify-between bg-gray-700 p-4 rounded-lg"
-              >
-                <div>
-                  <h4 className="font-semibold">{member.username}</h4>
-                  <p className="text-sm text-gray-400">{member.email}</p>
-                </div>
-                <div className="flex items-center gap-6 mr-4">
-                  <div className="text-center">
-                    <p className="text-sm text-gray-400">Challenges</p>
-                    <p className="font-semibold">{member.solvedCount}</p>
+            {team.members?.map((member) => {
+              const memberId = member._id.toString();
+              return (
+                <div key={memberId} className="flex items-center justify-between bg-gray-700 p-4 rounded-lg">
+                  <div>
+                    <p className="text-white font-medium">{member.username}</p>
+                    <p className="text-gray-400 text-sm">
+                      {memberId === team.leaderId.toString() ? 'Team Leader' : 'Member'}
+                    </p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm text-gray-400">Points</p>
-                    <p className="font-semibold">{member.points}</p>
-                  </div>
-                </div>
-                <div className="text-sm">
-                  {member._id === team.leaderId ? (
-                    <span className="bg-yellow-600 px-3 py-1 rounded-full">Leader</span>
-                  ) : (
-                    <span className="bg-blue-600 px-3 py-1 rounded-full">Member</span>
+                  {isLeader && memberId !== team.leaderId.toString() && (
+                    <button
+                      onClick={() => handleRemoveMember(memberId)}
+                      className="text-red-500 hover:text-red-600 p-2 rounded-full hover:bg-gray-600 transition-colors"
+                      title="Remove member"
+                    >
+                      <UserMinusIcon className="h-5 w-5" />
+                    </button>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
