@@ -228,4 +228,26 @@
                  0 0 20px rgba(239, 68, 68, 0.3),
                  0 0 30px rgba(239, 68, 68, 0.2);
   }
+  
+  .overflow-wrap-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(239, 68, 68, 0.5);
+}
+
+@layer utilities {
+  .glow-text {
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.5),
+                 0 0 20px rgba(239, 68, 68, 0.3),
+                 0 0 30px rgba(239, 68, 68, 0.2);
+  }
 }

@@ -256,124 +256,151 @@ export default function ChallengesPage() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50 overflow-hidden">
-        <div className="relative bg-[#0a0a0a] border-2 border-red-500 rounded-xl shadow-2xl shadow-red-900/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 hover:scale-[1.01]">
-          {/* Glitch effect overlay */}
-          <div className="absolute inset-0 pointer-events-none opacity-20 animate-glitch-anim">
-            <div className="absolute inset-0 bg-red-500 mix-blend-overlay"></div>
-            <div className="absolute inset-0 bg-crimson-500 mix-blend-color-dodge opacity-30"></div>
-          </div>
-          
-          <div className="relative p-6 space-y-4 text-red-300">
-            {/* Header with terminal-like styling */}
-            <div className="flex justify-between items-center border-b-2 border-red-800 pb-3 mb-4">
-              <h2 className="text-2xl font-mono font-bold text-red-400 tracking-wider uppercase">
-                {challenge.title}
-                <span className="text-xs ml-2 text-red-600">[CTF CHALLENGE]</span>
-              </h2>
-              <button
-                onClick={onClose}
-                className="text-red-500 hover:text-red-200 transition-colors duration-300"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      <div 
+        className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-[150] overflow-hidden"
+        aria-labelledby="modal-title" 
+        role="dialog" 
+        aria-modal="true"
+      >
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50 overflow-hidden">
+          <div className="relative bg-[#0a0a0a] border-2 border-red-500 rounded-xl shadow-2xl shadow-red-900/50 max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all duration-300 hover:scale-[1.01]">
+            {/* Glitch effect overlay */}
+            <div className="absolute inset-0 pointer-events-none opacity-20 animate-glitch-anim">
+              <div className="absolute inset-0 bg-red-500 mix-blend-overlay"></div>
+              <div className="absolute inset-0 bg-crimson-500 mix-blend-color-dodge opacity-30"></div>
             </div>
-            
-            <div className="space-y-4">
-              {/* Challenge Tags with hacker-style design */}
-              <div className="flex flex-wrap gap-2">
-                <span className={`px-3 py-1 rounded-lg text-sm font-mono ${getDifficultyColor(challenge.difficulty)} bg-opacity-20 border border-current`}>
-                  {challenge.difficulty}
-                </span>
-                <span className="px-3 py-1 rounded-lg text-sm font-mono text-blue-500 bg-opacity-20 border border-current">
-                  {challenge.category}
-                </span>
-                <span className="px-3 py-1 rounded-lg text-sm font-mono text-purple-500 bg-opacity-20 border border-current">
-                  {challenge.points} pts
-                </span>
+ 　 　 <div className="relative p-6 space-y-4 text-red-300">
+              {/* Header with terminal-like styling */}
+              <div className="flex justify-between items-center border-b-2 border-red-800 pb-3 mb-4">
+                <h2 className="text-2xl font-mono font-bold text-red-400 tracking-wider uppercase">
+                  {challenge.title}
+                  <span className="text-xs ml-2 text-red-600">[CTF CHALLENGE]</span>
+                </h2>
+                <button
+                  onClick={onClose}
+                  className="text-red-500 hover:text-red-200 transition-colors duration-300"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Challenge Tags with hacker-style design */}
+                <div className="flex flex-wrap gap-2">
+                  <span className={`px-3 py-1 rounded-lg text-sm font-mono ${getDifficultyColor(challenge.difficulty)} bg-opacity-20 border border-current`}>
+                    {challenge.difficulty}
+                  </span>
+                  <span className="px-3 py-1 rounded-lg text-sm font-mono text-blue-500 bg-opacity-20 border border-current">
+                    {challenge.category}
+                  </span>
+                  <span className="px-3 py-1 rounded-lg text-sm font-mono text-purple-500 bg-opacity-20 border border-current">
+                    {challenge.points} pts
+                  </span>
+                </div>
+
+                {/* Description */}
+                {challenge.description && (
+                  <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-red-500/30">
+                    <h3 className="text-lg font-bold text-red-400 mb-2">Challenge Description</h3>
+                    <pre className="whitespace-pre-wrap break-words overflow-wrap-anywhere">{challenge.description}</pre>
+                  </div>
+                )}
+
+                {/* Hints */}
+                {challenge.hints && challenge.hints.length > 0 && (
+                  <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-yellow-500/30">
+                    <h3 className="text-lg font-bold text-yellow-400 mb-2">Hints</h3>
+                    <div className="space-y-2">
+                      {challenge.hints.map((hint, index) => (
+                        <div key={index} className="p-2 bg-black/40 rounded border border-yellow-500/20">
+                          <pre className="whitespace-pre-wrap break-words overflow-wrap-anywhere text-yellow-300/80">
+                            {hint.content}
+                          </pre>
+                          {hint.cost > 0 && (
+                            <div className="mt-1 text-sm text-yellow-500/60">
+                              Cost: {hint.cost} points
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Challenge Files */}
+                {challenge.files && challenge.files.length > 0 && (
+                  <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-blue-500/30">
+                    <h3 className="text-lg font-bold text-blue-400 mb-2">Challenge Files</h3>
+                    <ul className="list-disc list-inside space-y-2">
+                      {challenge.files.map((file, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <a 
+                            href={`data:${file.type};base64,${file.data}`}
+                            download={file.name}
+                            className="text-blue-400 hover:underline flex items-center gap-2"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            {file.name}
+                            <span className="text-xs text-gray-500">({(file.size/1024).toFixed(1)} KB)</span>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
 
-              {/* Description */}
-              {challenge.description && (
-                <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-red-500/30">
-                  <h3 className="text-lg font-bold text-red-400 mb-2">Challenge Description</h3>
-                  <pre className="whitespace-pre-wrap">{challenge.description}</pre>
+              {/* Flag submission with terminal-like input */}
+              <div className="mt-6 space-y-2">
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={flagInput}
+                    onChange={handleFlagInputChange}
+                    placeholder="Enter flag"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck="false"
+                    onFocus={(e) => e.target.select()}
+                    className="flex-1 px-3 py-2 bg-black text-red-300 border-2 border-red-800 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <button
+                    onClick={() => handleSubmitFlag(challenge._id)}
+                    disabled={submitLoading}
+                    className={`px-4 py-2 bg-red-700 text-white font-mono rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                      submitLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {submitLoading ? 'SUBMITTING...' : 'SUBMIT FLAG'}
+                  </button>
                 </div>
-              )}
-
-              {/* Challenge Files */}
-              {challenge.files && challenge.files.length > 0 && (
-                <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-blue-500/30">
-                  <h3 className="text-lg font-bold text-blue-400 mb-2">Challenge Files</h3>
-                  <ul className="list-disc list-inside space-y-2">
-                    {challenge.files.map((file, index) => (
-                      <li key={index} className="flex items-center gap-2">
-                        <a 
-                          href={`data:${file.type};base64,${file.data}`}
-                          download={file.name}
-                          className="text-blue-400 hover:underline flex items-center gap-2"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                          {file.name}
-                          <span className="text-xs text-gray-500">({(file.size/1024).toFixed(1)} KB)</span>
-                        </a>
-                      </li>
+                {submitError && (
+                  <p className="text-red-400 font-mono text-sm">
+                    [ERROR] {submitError}
+                  </p>
+                )}
+                {submitSuccess && (
+                  <p className="text-green-500 font-mono text-sm">
+                    [SUCCESS] {submitSuccess}
+                  </p>
+                )}
+              </div>
+               {/* Solved Teams */}
+               <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-green-500/30">
+                  <h3 className="text-lg font-bold text-green-400 mb-2">Teams Solved</h3>
+                  <ul className="list-disc list-inside">
+                    {challenge.solvedTeams.map((team) => (
+                      <li key={team.id}>{team.name}</li>
                     ))}
                   </ul>
                 </div>
-              )}
-            </div>
 
-            {/* Flag submission with terminal-like input */}
-            <div className="mt-6 space-y-2">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={flagInput}
-                  onChange={handleFlagInputChange}
-                  placeholder="Enter flag"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                  onFocus={(e) => e.target.select()}
-                  className="flex-1 px-3 py-2 bg-black text-red-300 border-2 border-red-800 rounded-md font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-                <button
-                  onClick={() => handleSubmitFlag(challenge._id)}
-                  disabled={submitLoading}
-                  className={`px-4 py-2 bg-red-700 text-white font-mono rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                    submitLoading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {submitLoading ? 'SUBMITTING...' : 'SUBMIT FLAG'}
-                </button>
-              </div>
-              {submitError && (
-                <p className="text-red-400 font-mono text-sm">
-                  [ERROR] {submitError}
-                </p>
-              )}
-              {submitSuccess && (
-                <p className="text-green-500 font-mono text-sm">
-                  [SUCCESS] {submitSuccess}
-                </p>
-              )}
             </div>
-             {/* Solved Teams */}
-             <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-green-500/30">
-                <h3 className="text-lg font-bold text-green-400 mb-2">Teams Solved</h3>
-                <ul className="list-disc list-inside">
-                  {challenge.solvedTeams.map((team) => (
-                    <li key={team.id}>{team.name}</li>
-                  ))}
-                </ul>
-              </div>
-
           </div>
         </div>
       </div>
