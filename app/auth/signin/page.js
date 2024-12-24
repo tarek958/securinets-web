@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/components/Providers';
 
 export default function SignIn() {
   const router = useRouter();
+  const { login } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -20,20 +21,15 @@ export default function SignIn() {
     const password = formData.get('password');
 
     try {
-      const result = await signIn('credentials', {
-        redirect: false,
-        email,
-        password,
-      });
-
-      if (result.error) {
-        setError('Invalid email or password');
-      } else {
+      const result = await login(email, password);
+      if (result.success) {
         router.push('/dashboard');
-        router.refresh();
+      } else {
+        setError(result.error || 'Login failed');
       }
     } catch (error) {
-      setError('An error occurred. Please try again.');
+      console.error('Login error:', error);
+      setError('An error occurred during login');
     } finally {
       setLoading(false);
     }

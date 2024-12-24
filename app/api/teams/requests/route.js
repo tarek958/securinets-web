@@ -1,9 +1,6 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { connectToDatabase as connectToDb } from '@/lib/db';
+import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
-import { getIO } from '@/lib/socket';
+import { NextResponse } from 'next/server';
 
 // Handle join requests (accept/reject)
 export async function POST(request) {
@@ -11,13 +8,14 @@ export async function POST(request) {
     const userData = request.headers.get('x-user-data');
     if (!userData) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
+        { success: false, message: 'Unauthorized' },
         { status: 401 }
       );
     }
 
     const user = JSON.parse(userData);
     const { teamId, userId, action } = await request.json();
+    const { db } = await connectToDatabase();
 
     if (!teamId || !userId || !action) {
       return NextResponse.json({
@@ -32,8 +30,6 @@ export async function POST(request) {
         message: 'Invalid action'
       }, { status: 400 });
     }
-
-    const { db } = await connectToDb();
 
     // Verify the user is a team member
     const team = await db.collection('teams').findOne({
@@ -237,7 +233,7 @@ export async function GET(request) {
     const userData = request.headers.get('x-user-data');
     if (!userData) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
+        { success: false, message: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -253,7 +249,7 @@ export async function GET(request) {
       }, { status: 400 });
     }
 
-    const { db } = await connectToDb();
+    const { db } = await connectToDatabase();
 
     // Verify the user is a team member
     const team = await db.collection('teams').findOne({

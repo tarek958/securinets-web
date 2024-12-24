@@ -1,13 +1,13 @@
-import { connectDB } from '@/lib/db';
-import Post from '@/models/Post';
-import { getIO } from '@/lib/socket';
 import { NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { broadcast } from '@/app/api/events/route';
+import { ObjectId } from 'mongodb';
 
 export async function POST(request, { params }) {
   try {
     const { postId } = params;
     const { content, parentCommentId } = await request.json();
-    await connectDB();
+    await connectToDatabase();
 
     // Get user data from headers
     const userData = request.headers.get('x-user-data');
@@ -44,13 +44,10 @@ export async function POST(request, { params }) {
     const newComment = post.comments[post.comments.length - 1];
 
     // Emit new comment event
-    const io = getIO();
-    if (io) {
-      io.to(`post-${postId}`).emit('newComment', {
-        postId,
-        comment: newComment,
-      });
-    }
+    await broadcast(`post-${postId}`, 'newComment', {
+      postId,
+      comment: newComment,
+    });
 
     return NextResponse.json(newComment);
   } catch (error) {

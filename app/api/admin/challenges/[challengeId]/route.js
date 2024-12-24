@@ -1,6 +1,8 @@
 import { ObjectId } from 'mongodb';
 import { connectToDatabase } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { broadcast } from '@/app/api/events/route';
+import { notifyNewChallenge } from '@/lib/socket';
 
 // GET single challenge
 export async function GET(request, context) {
@@ -137,23 +139,25 @@ export async function PATCH(request, context) {
     console.log('Updating challenge with ID:', challengeId);
     console.log('Update fields:', updateFields);
 
-    const result = await db.collection('challenges').updateOne(
+    const updateResult = await db.collection('challenges').findOneAndUpdate(
       { _id: new ObjectId(challengeId) },
-      { $set: updateFields }
+      { $set: updateFields },
+      { returnDocument: 'after' }
     );
-    console.log('Database update result:', result);
 
-    if (result.modifiedCount > 0) {
+    if (!updateResult) {
       return NextResponse.json(
-        { message: 'Challenge updated successfully' },
-        { status: 200 }
-      );
-    } else {
-      return NextResponse.json(
-        { error: 'Failed to update challenge' },
-        { status: 500 }
+        { error: 'Challenge not found' },
+        { status: 404 }
       );
     }
+
+    // If the challenge status was changed to active, send a notification
+    if (status === 'active') {
+      await broadcast('newChallenge', updateResult.value);
+    }
+
+    return NextResponse.json(updateResult.value);
   } catch (error) {
     console.error('Error updating challenge:', error);
     return NextResponse.json(

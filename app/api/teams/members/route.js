@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase as connectToDb } from '@/lib/db';
+import { connectToDatabase } from '@/lib/db';
+import { broadcast } from '@/app/api/events/route';
 import { ObjectId } from 'mongodb';
-import { getIO } from '@/lib/socket';
 
 export async function DELETE(request) {
   try {
@@ -30,7 +30,7 @@ export async function DELETE(request) {
       }, { status: 400 });
     }
 
-    const { db } = await connectToDb();
+    const { db } = await connectToDatabase();
 
     // Get team information
     const team = await db.collection('teams').findOne({
@@ -97,13 +97,10 @@ export async function DELETE(request) {
     }
 
     // Notify other team members
-    const io = getIO();
-    if (io) {
-      io.to(`team:${teamId}`).emit('team:update', {
-        type: action === 'leave' ? 'member_left' : 'member_removed',
-        memberId
-      });
-    }
+    await broadcast(`team:${teamId}`, 'team:update', {
+      type: action === 'leave' ? 'member_left' : 'member_removed',
+      memberId
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

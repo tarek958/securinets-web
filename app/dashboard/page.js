@@ -1,6 +1,6 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/components/Providers';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -14,7 +14,7 @@ import {
 import TeamManagement from '../components/TeamManagement';
 
 export default function Dashboard() {
-  const { data: session, status } = useSession();
+  const { user, loading } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState({
     solvedCTFs: 0,
@@ -24,13 +24,15 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (loading) {
+      return;
+    } else if (!user) {
       router.push('/auth/signin');
-    } else if (session?.user) {
+    } else {
       // Fetch user stats
       fetchUserStats();
     }
-  }, [status, session]);
+  }, [loading, user]);
 
   const fetchUserStats = async () => {
     try {
@@ -42,7 +44,7 @@ export default function Dashboard() {
     }
   };
 
-  if (status === 'loading') {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">Loading...</div>

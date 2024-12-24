@@ -1,29 +1,33 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from 'mongodb';
+import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 export async function POST(request) {
   try {
-    const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ success: false, message: 'Not authenticated' }, { status: 401 });
+    const userData = request.headers.get('x-user-data');
+    if (!userData) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    const userId = session.user.sub || session.user._id || session.user.id;
+    const user = JSON.parse(userData);
+    const { teamId } = await request.json();
     const { db } = await connectToDatabase();
 
-    // Find user's team where they are the leader
+    // Verify user is team leader
     const team = await db.collection('teams').findOne({
-      leaderId: userId
+      _id: new ObjectId(teamId),
+      leaderId: user.id
     });
 
     if (!team) {
-      return NextResponse.json({ 
-        success: false,
-        message: 'Team not found or user is not team leader' 
-      }, { status: 403 });
+      return NextResponse.json(
+        { success: false, message: 'You are not authorized to generate invites for this team' },
+        { status: 403 }
+      );
     }
 
     // Check team size
@@ -31,12 +35,28 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: 'Team has reached maximum size of 4 members' }, { status: 400 });
     }
 
-    // Generate a random invite code
-    const inviteCode = crypto.randomBytes(3).toString('hex').toUpperCase();
+    // Generate new invite code
+    const generateCode = () => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      return Array.from(
+        { length: 8 },
+        () => chars.charAt(Math.floor(Math.random() * chars.length))
+      ).join('');
+    };
 
-    // Update the team with the new invite code
+    let isUnique = false;
+    let inviteCode;
+    while (!isUnique) {
+      inviteCode = generateCode();
+      const existingTeam = await db.collection('teams').findOne({ inviteCode });
+      if (!existingTeam || existingTeam._id.equals(team._id)) {
+        isUnique = true;
+      }
+    }
+
+    // Update team with new invite code
     await db.collection('teams').updateOne(
-      { _id: team._id },
+      { _id: new ObjectId(teamId) },
       { 
         $set: { 
           inviteCode,
@@ -45,17 +65,16 @@ export async function POST(request) {
       }
     );
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       inviteCode
     });
 
   } catch (error) {
     console.error('Error generating invite code:', error);
-    return NextResponse.json({ 
-      success: false,
-      message: 'Internal server error',
-      details: error.message
-    }, { status: 500 });
+    return NextResponse.json(
+      { success: false, message: 'Internal server error', details: error.message },
+      { status: 500 }
+    );
   }
 }

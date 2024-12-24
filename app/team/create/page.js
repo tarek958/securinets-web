@@ -11,7 +11,7 @@ export default function CreateTeamPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    isPublic: false,
+    isPublic: true,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -55,11 +55,18 @@ export default function CreateTeamPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gray-900 relative">
-        <MatrixBackground />
-        <div className="relative z-10 flex justify-center items-center h-screen">
-          <div className="text-center text-white">
-            Please log in to create a team.
+      <div className="min-h-screen bg-[#0a0a0a] text-red-500 p-8">
+        <div className="max-w-2xl mx-auto">
+          <div className="relative">
+            <div className="absolute -inset-1 bg-gradient-to-r from-red-500 via-red-900 to-red-500 rounded-lg blur opacity-25 animate-pulse"></div>
+            <div className="relative bg-black border-l-4 border-red-500 rounded-lg p-6">
+              <h1 className="text-3xl font-mono font-bold bg-gradient-to-r from-red-500 via-red-300 to-red-500 text-transparent bg-clip-text">
+                &gt; Access_Denied
+              </h1>
+              <p className="text-sm text-red-400/70 font-mono mt-2">
+                Authentication required. Please log in to proceed.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -67,80 +74,123 @@ export default function CreateTeamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900/70 relative">
-      <MatrixBackground />
-      <div className="relative z-10">
-        <div className="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8">
-          <div className="bg-gray-800/80 rounded-lg p-6 backdrop-blur-sm">
-            <h1 className="text-2xl font-bold text-white mb-6">Create Your Team</h1>
+    <div className="min-h-screen bg-[#0a0a0a] text-red-500 p-8">
+      <div className="max-w-2xl mx-auto">
+        {/* Header Section */}
+        <div className="relative mb-12">
+          <div className="absolute -inset-1 bg-gradient-to-r from-red-500 via-red-900 to-red-500 rounded-lg blur opacity-25 animate-pulse"></div>
+          <div className="relative bg-black border-l-4 border-red-500 rounded-lg p-6">
+            <h1 className="text-3xl font-mono font-bold bg-gradient-to-r from-red-500 via-red-300 to-red-500 text-transparent bg-clip-text">
+              &gt; Team_Creation_Protocol
+            </h1>
+            <p className="text-sm text-red-400/70 font-mono mt-2">
+              <span className="text-red-500">[</span> INITIALIZE NEW TEAM PARAMETERS <span className="text-red-500">]</span>
+            </p>
+          </div>
+        </div>
 
+        {/* Form Section */}
+        <div className="relative">
+          <div className="absolute -inset-1 bg-gradient-to-r from-red-500 via-red-900 to-red-500 rounded-lg blur opacity-25"></div>
+          <form onSubmit={handleSubmit} className="relative bg-black rounded-lg p-8">
             {error && (
-              <div className="bg-red-900/50 border border-red-500 text-red-400 px-4 py-3 rounded mb-6">
-                {error}
+              <div className="mb-6 font-mono text-sm">
+                <div className="text-red-500">&gt; Error detected:</div>
+                <div className="text-red-400/70">&gt; {error}</div>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Team Name
+            {/* Terminal-like header */}
+            <div className="font-mono text-sm mb-6">
+              <div className="text-red-400/70">&gt; Initializing team creation sequence...</div>
+              <div className="text-red-400/70">&gt; Awaiting parameter input...</div>
+            </div>
+
+            <div className="space-y-6">
+              {/* Team Name Input */}
+              <div className="relative group">
+                <label className="block text-sm font-mono text-red-400/70 mb-2">
+                  &gt; Team_Designation:
                 </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                  required
-                  minLength={3}
-                  maxLength={50}
-                  placeholder="Enter your team name"
-                />
+                <div className="relative">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 to-red-900 rounded-md blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="relative w-full bg-black border border-red-500/50 rounded-md px-4 py-3 text-red-500 font-mono placeholder-red-500/30 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                    required
+                    minLength={3}
+                    maxLength={50}
+                    placeholder="ENTER_TEAM_NAME"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Description
+              {/* Team Description Input */}
+              <div className="relative group">
+                <label className="block text-sm font-mono text-red-400/70 mb-2">
+                  &gt; Mission_Parameters:
                 </label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                  required
-                  rows={4}
-                  minLength={10}
-                  maxLength={500}
-                  placeholder="Describe your team"
-                />
+                <div className="relative">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 to-red-900 rounded-md blur opacity-20 group-hover:opacity-30 transition duration-500"></div>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    className="relative w-full bg-black border border-red-500/50 rounded-md px-4 py-3 text-red-500 font-mono placeholder-red-500/30 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                    rows="4"
+                    placeholder="DESCRIBE_TEAM_OBJECTIVES"
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  name="isPublic"
-                  checked={formData.isPublic}
-                  onChange={handleInputChange}
-                  className="h-4 w-4 text-red-500 focus:ring-red-500 border-gray-600 rounded bg-gray-700"
-                />
-                <label className="ml-2 block text-sm text-gray-300">
-                  Make team public
+              {/* Public Team Toggle */}
+              <div className="relative group">
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      name="isPublic"
+                      checked={formData.isPublic}
+                      onChange={handleInputChange}
+                      className="sr-only"
+                    />
+                    <div className="w-10 h-5 bg-black border border-red-500/50 rounded-full shadow-inner"></div>
+                    <div className={`absolute left-0 top-0 w-5 h-5 bg-red-500 rounded-full transition-transform transform ${formData.isPublic ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                  </div>
+                  <span className="text-sm font-mono text-red-400/70">
+                    &gt; Enable_Public_Access
+                  </span>
                 </label>
               </div>
 
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full px-4 py-2 text-white rounded-lg transition-colors ${
-                  loading
-                    ? 'bg-gray-600 cursor-not-allowed'
-                    : 'bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-800'
-                }`}
+                className="w-full relative group overflow-hidden rounded-md"
               >
-                {loading ? 'Creating...' : 'Create Team'}
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 via-red-900 to-red-500 rounded-lg blur opacity-30 group-hover:opacity-50 transition duration-500"></div>
+                <div className="relative flex items-center justify-center bg-black text-red-500 font-mono py-3 rounded-md border border-red-500/30 group-hover:border-red-500/50 transition-all duration-300">
+                  {loading ? '>> INITIALIZING...' : '>> EXECUTE_CREATION'}
+                </div>
               </button>
-            </form>
-          </div>
+            </div>
+
+            {/* Terminal-like status messages */}
+            <div className="mt-6 font-mono text-sm text-red-400/70">
+              <div>&gt; System ready for initialization...</div>
+              {loading && (
+                <>
+                  <div>&gt; Processing request...</div>
+                  <div>&gt; Establishing secure connection...</div>
+                  <div className="animate-pulse">&gt; _</div>
+                </>
+              )}
+            </div>
+          </form>
         </div>
       </div>
     </div>

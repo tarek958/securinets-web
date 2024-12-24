@@ -54,15 +54,40 @@ export function AuthProvider({ children }) {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+      if (response.ok) {
+        setUser(data.user);
+        router.push('/dashboard');
+        return { success: true };
+      } else {
+        return { success: false, error: data.message || 'Login failed' };
       }
-
-      setUser(data.user);
-      return data.user;
     } catch (error) {
       console.error('Login error:', error);
-      throw error;
+      return { success: false, error: 'An error occurred during login' };
+    }
+  };
+
+  const register = async (userData) => {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        router.push('/login');
+        return { success: true };
+      } else {
+        return { success: false, error: data.message || 'Registration failed' };
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { success: false, error: 'An error occurred during registration' };
     }
   };
 
@@ -75,7 +100,7 @@ export function AuthProvider({ children }) {
 
       if (response.ok) {
         setUser(null);
-        router.push('/auth/login');
+        router.push('/login');
       }
     } catch (error) {
       console.error('Logout error:', error);
@@ -87,7 +112,7 @@ export function AuthProvider({ children }) {
     loading,
     login,
     logout,
-    checkAuth,
+    register,
   };
 
   if (loading) {

@@ -1,15 +1,56 @@
-import { connectToDatabase } from '@/lib/db';
-import Challenge from '@/models/Challenge';
 import { NextResponse } from 'next/server';
-import { ObjectId } from 'mongodb';
+import { connectToDatabase } from '@/lib/db';
 import { verifyAuth } from '@/lib/auth';
-import { getIO } from '@/lib/socket';
+import { broadcast } from '@/app/api/events/route';
+import { ObjectId } from 'mongodb';
+import { writeFile } from 'fs/promises';
+import path from 'path';
+import crypto from 'crypto';
+
+// Helper function to save file
+async function saveFile(file) {
+  try {
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+    
+    // Generate a unique filename
+    const uniqueId = crypto.randomBytes(8).toString('hex');
+    const originalName = file.name;
+    const extension = path.extname(originalName);
+    const filename = `${uniqueId}${extension}`;
+    
+    // Save file to public/challenges directory
+    const filePath = path.join(process.cwd(), 'public', 'challenges', filename);
+    await writeFile(filePath, buffer);
+    
+    // Return the public URL
+    return {
+      filename,
+      url: `/api/challenges/download/${filename}`,
+      originalName,
+      size: file.size,
+      type: file.type
+    };
+  } catch (error) {
+    console.error('Error saving file:', error);
+    throw error;
+  }
+}
 
 export async function GET(request) {
   try {
     const { db } = await connectToDatabase();
     const authResult = await verifyAuth(request);
     
+    // Cache key based on auth status
+    const cacheKey = `challenges_all_${authResult.user ? authResult.user._id : 'anonymous'}`;
+    
+    // Check Redis cache first
+    const cachedData = await db.redis?.get(cacheKey);
+    if (cachedData) {
+      return NextResponse.json(JSON.parse(cachedData));
+    }
+
     // Get all active challenges
     const challenges = await db.collection('challenges')
       .find({ status: 'active' })
@@ -65,10 +106,35 @@ export async function GET(request) {
         name: team.name
       }));
 
+      // Process files to handle both old and new format
+      const processedFiles = challenge.files?.map(file => {
+        if (file.data) {
+          // Old format (base64)
+          return {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            data: file.data,
+            isBase64: true
+          };
+        } else {
+          // New format (stored file)
+          return {
+            name: file.originalName,
+            filename: file.filename,
+            url: file.url,
+            type: file.type,
+            size: file.size,
+            isBase64: false
+          };
+        }
+      }) || [];
+
       return {
         ...challenge,
         solvedCount: solvedInfo.count,
-        solvedTeams
+        solvedTeams,
+        files: processedFiles
       };
     });
 
@@ -91,35 +157,15 @@ export async function GET(request) {
 
         // If user is in a team, get all team members' solved challenges
         if (team) {
-          console.log('Found team:', {
-            teamId: team._id.toString(),
-            teamName: team.name,
-            members: team.members,
-            leaderId: team.leaderId
-          });
-          
           // Mark challenges as solved if the current user has solved them
           enhancedChallenges.forEach(challenge => {
             const challengeId = challenge._id.toString();
             const userSolved = user.solvedChallenges?.includes(challengeId);
             
             // Check if user's team is in the challenge's solvedTeams array
-            const teamSolved = challenge.solvedTeams?.some(solvedTeam => {
-              console.log('Comparing teams:', {
-                solvedTeamId: solvedTeam.id,
-                userTeamId: team._id.toString(),
-                match: solvedTeam.id === team._id.toString()
-              });
-              return solvedTeam.id === team._id.toString();
-            });
-            
-            console.log(`Challenge ${challenge.title} (${challengeId}):`, {
-              userSolved,
-              teamSolved,
-              teamId: team._id.toString(),
-              solvedTeams: challenge.solvedTeams,
-              solvedTeamIds: challenge.solvedTeams?.map(t => t.id)
-            });
+            const teamSolved = challenge.solvedTeams?.some(solvedTeam => 
+              solvedTeam.id === team._id.toString()
+            );
             
             challenge.isSolved = userSolved;
             challenge.solvedByTeam = teamSolved || false;
@@ -134,7 +180,13 @@ export async function GET(request) {
       }
     }
 
+    // Cache the result for 5 minutes
+    if (db.redis) {
+      await db.redis.setex(cacheKey, 300, JSON.stringify(enhancedChallenges));
+    }
+
     return NextResponse.json(enhancedChallenges);
+
   } catch (error) {
     console.error('Error fetching challenges:', error);
     return NextResponse.json(
@@ -149,21 +201,28 @@ export async function POST(request) {
     const { db } = await connectToDatabase();
     const authResult = await verifyAuth(request);
 
-    if (!authResult.success || authResult.user.role !== 'admin') {
+    if (!authResult.user || authResult.user.role !== 'admin') {
       return NextResponse.json(
-        { error: 'Unauthorized: Admin access required' },
-        { status: 403 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
+    // Handle multipart form data
     const formData = await request.formData();
     
-    // Log the received form data for debugging
-    console.log('Received form data:', {
-      title: formData.get('title'),
-      category: formData.get('category'),
-      status: formData.get('status')
-    });
+    // Process challenge files
+    const files = formData.getAll('files');
+    const challengeFiles = [];
+    
+    if (files && files.length > 0) {
+      for (const file of files) {
+        if (file instanceof File) {
+          const fileInfo = await saveFile(file);
+          challengeFiles.push(fileInfo);
+        }
+      }
+    }
 
     // Create challenge data object
     const challengeData = {
@@ -173,43 +232,50 @@ export async function POST(request) {
       difficulty: formData.get('difficulty'),
       points: parseInt(formData.get('points')),
       flag: formData.get('flag'),
-      author: authResult.user._id,
-      status: formData.get('status') || 'inactive', // Use form status or default to inactive
-      hints: [],
-      files: []
+      createdAt: new Date(),
+      status: formData.get('status') || 'active',
+      createdBy: authResult.user._id,
+      files: challengeFiles // Store file information
     };
 
-    // Add hints if present
-    const hintsData = formData.get('hints');
-    if (hintsData) {
-      const hints = JSON.parse(hintsData);
-      challengeData.hints = hints.map(hint => ({ content: hint, cost: 0 }));
+    // Validate required fields
+    if (!challengeData.title || !challengeData.description || !challengeData.flag || 
+        !challengeData.category || !challengeData.difficulty || !challengeData.points) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
     }
 
-    // Create and save the challenge
-    const challenge = new Challenge(challengeData);
-    await challenge.save();
+    const result = await db.collection('challenges').insertOne(challengeData);
+    
+    if (!result.acknowledged) {
+      throw new Error('Failed to create challenge');
+    }
 
-    // Log the created challenge for debugging
-    console.log('Created challenge:', {
-      id: challenge._id,
-      title: challenge.title,
-      status: challenge.status
-    });
+    // Clear the cache when a new challenge is added
+    if (db.redis) {
+      const keys = await db.redis.keys('challenges_all_*');
+      if (keys.length > 0) {
+        await db.redis.del(keys);
+      }
+    }
 
     // Notify connected clients
     const io = getIO();
     if (io) {
       io.emit('challengeCreated', { 
-        challengeId: challenge._id,
-        status: challenge.status 
+        challengeId: result.insertedId,
+        status: challengeData.status 
       });
     }
 
     return NextResponse.json({ 
       message: 'Challenge created successfully',
-      status: challenge.status // Include status in response
+      challengeId: result.insertedId,
+      files: challengeFiles
     });
+
   } catch (error) {
     console.error('Error creating challenge:', error);
     return NextResponse.json(

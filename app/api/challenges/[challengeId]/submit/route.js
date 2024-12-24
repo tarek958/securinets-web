@@ -8,6 +8,9 @@ export async function POST(request, { params }) {
     const { db } = await connectToDatabase();
     const { flag } = await request.json();
     const challengeId = await params.challengeId;
+    const userId = request.headers.get('user-id');
+    const timestamp = new Date();
+    const ip = request.headers.get('x-real-ip') || request.headers.get('x-forwarded-for');
 
     // Check if CTF has ended
     const countdown = await db.collection('countdown').findOne({});
@@ -25,12 +28,12 @@ export async function POST(request, { params }) {
     console.log('Debug - Challenge submission:', {
       challengeId,
       flag,
-      userId: request.headers.get('user-id')
+      userId
     });
 
     // Verify user is authenticated
     const userCheck = await db.collection('users').findOne({ 
-      _id: new ObjectId(request.headers.get('user-id'))
+      _id: new ObjectId(userId)
     });
 
     if (!userCheck) {
@@ -48,17 +51,6 @@ export async function POST(request, { params }) {
       return NextResponse.json({ success: false, message: 'Challenge not found' }, { status: 404 });
     }
 
-    // Check if user has already solved this challenge
-    const alreadySolved = userCheck.solvedChallenges && 
-      userCheck.solvedChallenges.some(id => id.toString() === challengeId.toString());
-    
-    if (alreadySolved) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'You have already solved this challenge' 
-      }, { status: 400 });
-    }
-
     // Get user's team
     const team = await db.collection('teams').findOne({
       $or: [
@@ -66,6 +58,29 @@ export async function POST(request, { params }) {
         { members: userCheck._id.toString() }
       ]
     });
+
+    // Check if user has already solved this challenge
+    const alreadySolved = userCheck.solvedChallenges && 
+      userCheck.solvedChallenges.some(id => id.toString() === challengeId.toString());
+    
+    if (alreadySolved) {
+      // Log repeated attempt
+      await db.collection('submissions').insertOne({
+        userId: userCheck._id.toString(),
+        teamId: team?._id.toString(),
+        challengeId: challengeId,
+        timestamp,
+        flag,
+        isCorrect: false,
+        status: 'already_solved',
+        ip
+      });
+
+      return NextResponse.json({ 
+        success: false, 
+        message: 'You have already solved this challenge' 
+      }, { status: 400 });
+    }
 
     if (team) {
       // Check if any team member has already solved this challenge
@@ -79,6 +94,18 @@ export async function POST(request, { params }) {
       });
 
       if (teamSolves) {
+        // Log team repeated attempt
+        await db.collection('submissions').insertOne({
+          userId: userCheck._id.toString(),
+          teamId: team._id.toString(),
+          challengeId: challengeId,
+          timestamp,
+          flag,
+          isCorrect: false,
+          status: 'team_already_solved',
+          ip
+        });
+
         return NextResponse.json({ 
           success: false, 
           message: 'This challenge has already been solved by your team' 
@@ -87,7 +114,22 @@ export async function POST(request, { params }) {
     }
 
     // Verify flag
-    if (flag !== challenge.flag) {
+    const isCorrect = flag === challenge.flag;
+    
+    // Log the attempt in submissions collection
+    await db.collection('submissions').insertOne({
+      userId: userCheck._id.toString(),
+      teamId: team?._id.toString(),
+      challengeId: challengeId,
+      timestamp,
+      flag,
+      isCorrect,
+      status: isCorrect ? 'correct' : 'wrong_flag',
+      points: isCorrect ? challenge.points : 0,
+      ip
+    });
+
+    if (!isCorrect) {
       return NextResponse.json({ 
         success: false, 
         message: 'Incorrect flag' 
@@ -147,6 +189,17 @@ export async function POST(request, { params }) {
       }
     }
 
+    // Log the successful solve in solves collection
+    await db.collection('solves').insertOne({
+      userId: userCheck._id.toString(),
+      teamId: team?._id.toString(),
+      challengeId: challengeId,
+      timestamp,
+      points: challenge.points,
+      isTeamSolve: !!team,
+      ip
+    });
+
     // Emit general challenge update
     const io = getIO();
     if (io) {
@@ -156,16 +209,6 @@ export async function POST(request, { params }) {
         solvedByTeam: !!team
       });
     }
-
-    // Log the solve
-    await db.collection('solves').insertOne({
-      userId: userCheck._id.toString(),
-      teamId: team?._id.toString(),
-      challengeId: challengeId,
-      timestamp: new Date(),
-      points: challenge.points,
-      isTeamSolve: !!team
-    });
 
     console.log('Points update result:', {
       challengePoints: challenge.points,
@@ -200,11 +243,7 @@ export async function POST(request, { params }) {
     });
 
   } catch (error) {
-    console.error('Error in flag submission:', error);
-    return NextResponse.json({ 
-      success: false, 
-      message: 'Internal server error',
-      details: error.message
-    }, { status: 500 });
+    console.error('Error in challenge submission:', error);
+    return NextResponse.json({ success: false, message: 'Server error' }, { status: 500 });
   }
 }

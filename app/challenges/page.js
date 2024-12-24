@@ -6,6 +6,7 @@ import Leaderboard from '@/components/Leaderboard.js';
 import { io } from 'socket.io-client';
 import ChallengesClient from '@/components/ChallengesClient';
 import MatrixBackground from '@/components/MatrixBackground';
+import { Toaster, toast } from 'react-hot-toast';
 
 export default function ChallengesPage() {
   const [challenges, setChallenges] = useState([]);
@@ -255,6 +256,92 @@ export default function ChallengesPage() {
       }
     };
 
+    const handleDownload = async (file) => {
+      if (file.isBase64) {
+        // Handle base64 file
+        const link = document.createElement('a');
+        link.href = `data:${file.type};base64,${file.data}`;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Handle stored file
+        try {
+          if (!user || !user.id) {
+            toast.error('Please log in to download files');
+            return;
+          }
+
+          // First fetch to get download URL with auth
+          const authResponse = await fetch('/api/challenges/download-auth', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              filename: file.filename || file.name // Try filename first, fallback to name
+            }),
+            credentials: 'include'
+          });
+
+          if (!authResponse.ok) {
+            const errorData = await authResponse.json();
+            throw new Error(errorData.error || 'Failed to authenticate download');
+          }
+
+          const { downloadUrl } = await authResponse.json();
+
+          // Now download the file
+          const response = await fetch(downloadUrl, {
+            credentials: 'include'
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to download file');
+          }
+
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = file.originalName || file.name; // Use originalName for display if available
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } catch (error) {
+          console.error('Download error:', error);
+          toast.error(error.message || 'Failed to download file');
+        }
+      }
+    };
+
+    const renderFileList = (files) => {
+      if (!files || files.length === 0) return null;
+      
+      return (
+        <div className="mt-4">
+          <h3 className="text-lg font-bold text-green-400 mb-2">Files</h3>
+          <ul className="list-disc list-inside">
+            {files.map((file, index) => (
+              <li key={index} className="text-gray-300">
+                <button
+                  onClick={() => handleDownload(file)}
+                  className="text-blue-400 hover:text-blue-300 underline"
+                >
+                  {file.name}
+                </button>
+                <span className="text-gray-500 text-sm ml-2">
+                  ({(file.size / 1024).toFixed(2)} KB)
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    };
+
     return (
       <div 
         className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-[150] overflow-hidden"
@@ -331,27 +418,9 @@ export default function ChallengesPage() {
 
                 {/* Challenge Files */}
                 {challenge.files && challenge.files.length > 0 && (
-                  <div className="font-mono text-gray-300 bg-black bg-opacity-50 p-4 rounded-lg border border-blue-500/30">
-                    <h3 className="text-lg font-bold text-blue-400 mb-2">Challenge Files</h3>
-                    <ul className="list-disc list-inside space-y-2">
-                      {challenge.files.map((file, index) => (
-                        <li key={index} className="flex items-center gap-2">
-                          <a 
-                            href={`data:${file.type};base64,${file.data}`}
-                            download={file.name}
-                            className="text-blue-400 hover:underline flex items-center gap-2"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            {file.name}
-                            <span className="text-xs text-gray-500">({(file.size/1024).toFixed(1)} KB)</span>
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  renderFileList(challenge.files)
                 )}
+
               </div>
 
               {/* Flag submission with terminal-like input */}
@@ -521,8 +590,9 @@ export default function ChallengesPage() {
   };
 
   return (
-    <>
-      <MatrixBackground />
+    <main className="min-h-screen relative">
+      <MatrixBackground className="fixed inset-0" />
+      <Toaster position="top-center" />
       <div className="relative z-10">
         <div className="max-w-8xl mx-auto p-4 sm:p-6 lg:p-8">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
@@ -589,13 +659,22 @@ export default function ChallengesPage() {
 
             {/* Challenges Grid */}
             <div className="lg:col-span-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredChallenges.map(challenge => (
-                  <ChallengeCard 
-                    key={challenge._id} 
-                    challenge={challenge} 
-                    onSelect={() => setSelectedChallenge(challenge)} 
-                  />
+              <div className="space-y-8">
+                {Array.from(new Set(filteredChallenges.map(c => c.category))).map(category => (
+                  <div key={category}>
+                    <h3 className="text-2xl font-bold text-red-500 mb-4 font-mono glow-text">{category}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredChallenges
+                        .filter(challenge => challenge.category === category)
+                        .map(challenge => (
+                          <ChallengeCard 
+                            key={challenge._id} 
+                            challenge={challenge} 
+                            onSelect={() => setSelectedChallenge(challenge)} 
+                          />
+                        ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -609,6 +688,6 @@ export default function ChallengesPage() {
           onClose={() => setSelectedChallenge(null)}
         />
       )}
-    </>
+    </main>
   );
 }

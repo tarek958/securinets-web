@@ -11,7 +11,12 @@ import {
   FlagIcon,
   DocumentTextIcon,
   CommandLineIcon,
-  TagIcon
+  TagIcon,
+  ArrowPathIcon,
+  ArrowDownTrayIcon,
+  ArchiveBoxIcon,
+  DocumentChartBarIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 
 export default function AdminPage() {
@@ -127,6 +132,38 @@ export default function AdminPage() {
       description: 'Documented solution reports',
       icon: DocumentTextIcon,
       href: '/admin/writeups',
+      color: 'bg-red-500/10'
+    },
+    {
+      name: 'Backup_CTF',
+      value: '💾',
+      description: 'Create and download CTF backup',
+      icon: ArchiveBoxIcon,
+      href: '/admin/backup',
+      color: 'bg-red-900/30'
+    },
+    {
+      name: 'Reset_CTF',
+      value: '⚠️',
+      description: 'Reset CTF data and settings',
+      icon: ArrowPathIcon,
+      href: '/admin/reset',
+      color: 'bg-red-900/30'
+    },
+    {
+      name: 'Activity_Logs',
+      value: '📊',
+      description: 'Monitor user activity and detect cheating',
+      icon: DocumentChartBarIcon,
+      href: '/admin/logs',
+      color: 'bg-yellow-900/30'
+    },
+    {
+      name: 'Initialize_CTF',
+      value: 'Configure',
+      description: 'Configure CTF name, favicon, and branding',
+      icon: Cog6ToothIcon,
+      href: '/admin/initialize',
       color: 'bg-red-500/10'
     }
   ];

@@ -49,9 +49,28 @@ export async function POST(request) {
       createdAt: new Date(),
       updatedAt: new Date(),
       solvedChallenges: [],
-      points: 0,
-      inviteCode: !isPublic ? Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) : null
+      points: 0
     };
+
+    // If team is not public, generate a unique invite code
+    if (!isPublic) {
+      const generateCode = () => {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        return Array.from(
+          { length: 8 },
+          () => chars.charAt(Math.floor(Math.random() * chars.length))
+        ).join('');
+      };
+
+      let isUnique = false;
+      while (!isUnique) {
+        team.inviteCode = generateCode();
+        const existingTeam = await db.collection('teams').findOne({ inviteCode: team.inviteCode });
+        if (!existingTeam) {
+          isUnique = true;
+        }
+      }
+    }
 
     const result = await db.collection('teams').insertOne(team);
 
@@ -93,11 +112,12 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const isPublic = searchParams.get('public') === 'true';
+    const publicOnly = searchParams.get('public') === 'true';
 
     const { db } = await connectToDatabase();
     
-    const query = isPublic ? { isPublic: true } : {};
+    // Only show public teams when publicOnly is true
+    const query = publicOnly ? { isPublic: true } : {};
     const teams = await db.collection('teams')
       .find(query)
       .sort({ points: -1, createdAt: -1 })

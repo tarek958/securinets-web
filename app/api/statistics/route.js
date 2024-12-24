@@ -240,7 +240,7 @@ export async function GET(request) {
         },
         {
           $project: {
-            challengeName: '$challenge.name',
+            challengeName: { $ifNull: ['$challenge.title', '$challenge.name'] },
             category: '$challenge.category',
             points: '$challenge.points',
             teamName: '$team.name',
@@ -306,7 +306,7 @@ export async function GET(request) {
         {
           $project: {
             teamName: '$team.name',
-            challengeName: '$challenge.name',
+            challengeName: { $ifNull: ['$challenge.title', '$challenge.name'] },
             category: '$challenge.category',
             points: '$challenge.points',
             timestamp: 1
@@ -447,16 +447,32 @@ export async function GET(request) {
         {
           $lookup: {
             from: 'solves',
-            localField: 'members._id',
-            foreignField: 'userId',
+            let: { memberIds: '$members._id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $in: [{ $toObjectId: '$userId' }, { $map: { input: '$$memberIds', as: 'id', in: { $toObjectId: '$$id' } } }]
+                  }
+                }
+              }
+            ],
             as: 'solves'
           }
         },
         {
           $lookup: {
             from: 'challenges',
-            localField: 'solves.challengeId',
-            foreignField: '_id',
+            let: { solveIds: '$solves.challengeId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $in: ['$_id', { $map: { input: '$$solveIds', as: 'id', in: { $toObjectId: '$$id' } } }]
+                  }
+                }
+              }
+            ],
             as: 'challenges'
           }
         },
@@ -476,6 +492,11 @@ export async function GET(request) {
           }
         },
         {
+          $match: {
+            totalPoints: { $gt: 0 }
+          }
+        },
+        {
           $sort: { totalPoints: -1, solveCount: -1 }
         },
         {
@@ -483,6 +504,69 @@ export async function GET(request) {
         }
       ])
       .toArray();
+
+    // Debug log
+    console.log('Top teams:', JSON.stringify(topTeams, null, 2));
+
+    // Get team progression data
+    const teamProgressions = await db.collection('teams')
+      .aggregate([
+        {
+          $lookup: {
+            from: 'solves',
+            let: { teamId: { $toString: '$_id' } },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ['$teamId', '$$teamId'] }
+                }
+              },
+              {
+                $group: {
+                  _id: {
+                    $dateToString: {
+                      format: '%Y-%m-%d %H:00:00',
+                      date: '$timestamp'
+                    }
+                  },
+                  points: { $sum: '$points' }
+                }
+              },
+              {
+                $sort: { _id: 1 }
+              }
+            ],
+            as: 'hourlyPoints'
+          }
+        },
+        {
+          $match: {
+            'hourlyPoints.0': { $exists: true }
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            progression: {
+              timeline: {
+                $map: {
+                  input: '$hourlyPoints',
+                  as: 'point',
+                  in: {
+                    _id: '$$point._id',
+                    points: '$$point.points'
+                  }
+                }
+              }
+            }
+          }
+        }
+      ])
+      .toArray();
+
+    // Debug log
+    console.log('Team progressions:', JSON.stringify(teamProgressions, null, 2));
 
     // Get top 10 users
     const topUsers = await db.collection('users')
@@ -535,65 +619,6 @@ export async function GET(request) {
         },
         {
           $limit: 10
-        }
-      ])
-      .toArray();
-
-    // Get team progression data
-    const teamProgressions = await db.collection('teams')
-      .aggregate([
-        {
-          $lookup: {
-            from: 'solves',
-            let: { teamId: { $toString: '$_id' } },
-            pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ['$teamId', '$$teamId'] }
-                }
-              },
-              {
-                $lookup: {
-                  from: 'challenges',
-                  let: { challengeId: '$challengeId' },
-                  pipeline: [
-                    {
-                      $match: {
-                        $expr: { $eq: ['$_id', { $toObjectId: '$$challengeId' }] }
-                      }
-                    }
-                  ],
-                  as: 'challenge'
-                }
-              },
-              {
-                $unwind: '$challenge'
-              },
-              {
-                $group: {
-                  _id: {
-                    $dateToString: {
-                      format: '%Y-%m-%d %H:00:00',
-                      date: { $toDate: '$timestamp' }
-                    }
-                  },
-                  points: { $sum: '$challenge.points' }
-                }
-              },
-              {
-                $sort: { '_id': 1 }
-              }
-            ],
-            as: 'progression'
-          }
-        },
-        {
-          $project: {
-            name: 1,
-            progression: {
-              timeline: '$progression'
-            }
-          }
         }
       ])
       .toArray();

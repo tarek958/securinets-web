@@ -12,7 +12,8 @@ const publicPaths = [
   '/forum',
   '/api/auth/login',
   '/api/auth/register',
-  '/api/auth/me'
+  '/api/auth/me',
+  '/api/admin/settings'
 ];
 
 const secret = new TextEncoder().encode(

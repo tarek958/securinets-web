@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from "mongodb";
+import { broadcast } from '@/app/api/events/route';
 
 export async function PATCH(req) {
   try {
@@ -33,6 +34,18 @@ export async function PATCH(req) {
 
     const { db } = await connectToDatabase();
 
+    // First get the challenge details
+    const challenge = await db.collection("challenges").findOne(
+      { _id: new ObjectId(challengeId) }
+    );
+
+    if (!challenge) {
+      return NextResponse.json(
+        { success: false, error: "Challenge not found" },
+        { status: 404 }
+      );
+    }
+
     const result = await db.collection("challenges").updateOne(
       { _id: new ObjectId(challengeId) },
       { $set: { status: newStatus } }
@@ -43,6 +56,20 @@ export async function PATCH(req) {
         { success: false, error: "Challenge not found" },
         { status: 404 }
       );
+    }
+
+    // If the challenge is being activated, send notification
+    if (newStatus === "active") {
+      await broadcast({
+        type: 'challenge-notification',
+        message: `New challenge available: ${challenge.title}!`,
+        challenge: {
+          id: challengeId,
+          title: challenge.title,
+          category: challenge.category,
+          points: challenge.points
+        }
+      });
     }
 
     return NextResponse.json({ success: true, status: newStatus });

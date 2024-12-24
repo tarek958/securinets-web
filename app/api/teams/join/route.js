@@ -13,13 +13,31 @@ export async function POST(request) {
     }
 
     const user = JSON.parse(userData);
-    const { teamId, inviteCode } = await request.json();
-
-    if (!teamId) {
-      return NextResponse.json({ success: false, message: 'Team ID is required' }, { status: 400 });
-    }
+    let { teamId, inviteCode } = await request.json();
 
     const { db } = await connectToDatabase();
+
+    // If invite code is provided, find team by invite code
+    let team;
+    if (inviteCode) {
+      team = await db.collection('teams').findOne({ inviteCode });
+      if (!team) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid invite code'
+        }, { status: 403 });
+      }
+      teamId = team._id.toString();
+    } else if (teamId) {
+      team = await db.collection('teams').findOne({
+        _id: new ObjectId(teamId)
+      });
+    } else {
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Either team ID or invite code is required' 
+      }, { status: 400 });
+    }
 
     // Check if user is already in a team
     const userTeam = await db.collection('teams').findOne({
@@ -37,16 +55,20 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Find the team
-    const team = await db.collection('teams').findOne({
-      _id: new ObjectId(teamId)
-    });
-
-    if (!team) {
+    // Check if the team is not public and requires an invite code
+    if (!team.isPublic && !inviteCode) {
       return NextResponse.json({
         success: false,
-        message: 'Team not found'
-      }, { status: 404 });
+        message: 'This is a private team. Please provide an invite code'
+      }, { status: 403 });
+    }
+
+    // For non-public teams, validate invite code
+    if (!team.isPublic && inviteCode !== team.inviteCode) {
+      return NextResponse.json({
+        success: false,
+        message: 'Invalid invite code'
+      }, { status: 403 });
     }
 
     // Check team size limit (4 members including leader)
@@ -58,18 +80,8 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // For private teams, validate invite code
-    if (!team.isPublic) {
-      if (!inviteCode || inviteCode !== team.inviteCode) {
-        return NextResponse.json({
-          success: false,
-          message: 'Invalid invite code'
-        }, { status: 403 });
-      }
-    }
-
     // For public teams, add to pending members
-    // For private teams with correct invite code, add directly to members
+    // For non-public teams with correct invite code, add directly to members
     const updateField = team.isPublic ? 'pendingMembers' : 'members';
     
     await db.collection('teams').updateOne(
@@ -151,9 +163,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: team.isPublic 
-        ? 'Join request sent successfully' 
-        : 'Joined team successfully',
+      message: team.isPublic ? 'Join request sent successfully' : 'Successfully joined the team',
       status: team.isPublic ? 'pending' : 'joined',
       remainingSlots: 4 - (currentMemberCount + 1)
     });

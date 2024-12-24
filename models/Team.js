@@ -42,7 +42,43 @@ const teamSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  isPublic: {
+    type: Boolean,
+    default: true
+  },
+  inviteCode: {
+    type: String,
+    unique: true,
+    sparse: true
   }
+});
+
+// Generate random invite code for non-public teams
+teamSchema.pre('save', async function(next) {
+  if (!this.isPublic && !this.inviteCode) {
+    // Generate a random 8-character code
+    const generateCode = () => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      return Array.from(
+        { length: 8 },
+        () => chars.charAt(Math.floor(Math.random() * chars.length))
+      ).join('');
+    };
+
+    // Keep generating until we find a unique code
+    let code;
+    let isUnique = false;
+    while (!isUnique) {
+      code = generateCode();
+      const existingTeam = await mongoose.models.Team.findOne({ inviteCode: code });
+      if (!existingTeam) {
+        isUnique = true;
+      }
+    }
+    this.inviteCode = code;
+  }
+  next();
 });
 
 // Middleware to enforce maximum 4 members

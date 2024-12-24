@@ -1,7 +1,8 @@
+import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
+import { broadcast } from '@/app/api/events/route';
 import { ObjectId } from 'mongodb';
 import { getIO } from '@/lib/socket';
-import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
@@ -142,16 +143,8 @@ export async function POST(request) {
         }
       ]).next();
 
-    // Emit socket event for real-time updates
-    try {
-      const io = getIO();
-      if (io) {
-        io.emit('newPost', insertedPost);
-      }
-    } catch (error) {
-      // Socket.io is not initialized, continue without real-time updates
-      console.log('Socket.io not available, skipping real-time update');
-    }
+    // Emit SSE event for real-time updates
+    await broadcast('newPost', insertedPost);
 
     return NextResponse.json(insertedPost);
   } catch (error) {

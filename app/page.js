@@ -7,7 +7,35 @@ import CyberBackground from '@/components/CyberBackground';
 import TeamSection from '@/components/TeamSection';
 import MinimalistCountdown from '@/components/MinimalistCountdown';
 import NavbarCountdown from '@/components/NavbarCountdown';
+
 export default function Home() {
+  const [ctfName, setCtfName] = useState('Securinets');
+  
+  useEffect(() => {
+    // Fetch CTF settings when component mounts
+    const fetchSettings = async () => {
+      try {
+        // Get the current domain and protocol
+        const protocol = window.location.protocol;
+        const domain = window.location.host;
+        
+        const response = await fetch(`${protocol}//${domain}/api/admin/settings`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.ctfName) {
+            setCtfName(data.ctfName);
+            // Update document title as well
+            document.title = data.ctfName;
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching CTF settings:', error);
+      }
+    };
+
+    fetchSettings();
+  }, []);
+
   const features = [
     {
       name: 'Challenges',
@@ -55,7 +83,7 @@ export default function Home() {
                     </div>
                   </div>
                   <h1 className="mt-10 text-4xl font-bold tracking-tight text-white sm:text-6xl">
-                    Welcome to Securinets
+                    Welcome to {ctfName}
                   </h1>
                   <p className="mt-6 text-lg leading-8 text-gray-300">
                     Join our cybersecurity community and enhance your skills through hands-on challenges,

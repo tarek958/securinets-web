@@ -11,6 +11,7 @@ export default function EditChallenge({ params }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const unwrappedParams = use(params);
+  const [categories, setCategories] = useState([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -24,10 +25,6 @@ export default function EditChallenge({ params }) {
     status: 'inactive'
   });
 
-  const categories = [
-    'Web', 'Pwn', 'Reverse', 'Crypto', 'Forensics', 'Misc'
-  ];
-
   const difficulties = [
     'Easy', 'Medium', 'Hard', 'Insane'
   ];
@@ -39,6 +36,7 @@ export default function EditChallenge({ params }) {
     }
 
     fetchChallenge();
+    fetchCategories();
   }, [user, router, unwrappedParams.challengeId]);
 
   const fetchChallenge = async () => {
@@ -66,6 +64,18 @@ export default function EditChallenge({ params }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories');
+      if (!response.ok) throw new Error('Failed to fetch categories');
+      const data = await response.json();
+      setCategories(data);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setError('Failed to load categories');
     }
   };
 
@@ -224,7 +234,7 @@ export default function EditChallenge({ params }) {
                   name="category"
                   value={formData.category}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-800 border border-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="mt-1 block w-full rounded-md bg-gray-700 border border-gray-600 text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   required
                 >
                   <option value="">Select category</option>
