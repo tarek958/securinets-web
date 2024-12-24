@@ -3,7 +3,7 @@ import { AuthProvider } from '@/components/Providers';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import Navbar from '@/components/Navbar';
 import { Toaster } from 'react-hot-toast';
-import NotificationListener from '@/components/NotificationListener';
+import ChallengeNotification from '@/components/ChallengeNotification';
 import "./globals.css";
 import { headers } from 'next/headers';
 
@@ -64,11 +64,15 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <ThemeProvider>
             <div className="min-h-screen flex flex-col">
-              <Navbar />
-              <main className="flex-grow pt-20">
-                {children}
-              </main>
-              <NotificationListener />
+              <div className="z-[100]">
+                <Navbar />
+              </div>
+              <div className="flex-grow">
+                <div className="pt-20">
+                  {children}
+                </div>
+              </div>
+              <ChallengeNotification />
               <Toaster position="top-right" />
             </div>
           </ThemeProvider>
