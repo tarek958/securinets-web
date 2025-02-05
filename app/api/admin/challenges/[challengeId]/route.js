@@ -1,7 +1,6 @@
 import { ObjectId } from 'mongodb';
 import { connectToDatabase } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { broadcast } from '@/app/api/events/route';
 import { notifyNewChallenge } from '@/lib/socket';
 
 // GET single challenge
@@ -154,7 +153,7 @@ export async function PATCH(request, context) {
 
     // If the challenge status was changed to active, send a notification
     if (status === 'active') {
-      await broadcast('newChallenge', updateResult.value);
+      notifyNewChallenge(updateResult.value);
     }
 
     return NextResponse.json(updateResult.value);

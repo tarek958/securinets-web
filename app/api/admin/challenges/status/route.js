@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from '@/lib/db';
 import { ObjectId } from "mongodb";
+import { notifyNewChallenge } from '@/lib/socket';
 
 export async function PATCH(req) {
   try {
@@ -21,6 +22,7 @@ export async function PATCH(req) {
     }
 
     const { challengeId, status } = await req.json();
+    console.log('Received status update request:', { challengeId, status });
 
     if (!challengeId) {
       return NextResponse.json(
@@ -29,27 +31,48 @@ export async function PATCH(req) {
       );
     }
 
-    const newStatus = status === "active" ? "inactive" : "active";
-
     const { db } = await connectToDatabase();
 
-    const result = await db.collection("challenges").updateOne(
-      { _id: new ObjectId(challengeId) },
-      { $set: { status: newStatus } }
-    );
+    // First, get the current challenge
+    const challenge = await db.collection("challenges").findOne({
+      _id: new ObjectId(challengeId)
+    });
 
-    if (result.matchedCount === 0) {
+    if (!challenge) {
       return NextResponse.json(
         { success: false, error: "Challenge not found" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ success: true, status: newStatus });
+    const newStatus = challenge.status === "active" ? "inactive" : "active";
+    console.log('Updating challenge status from', challenge.status, 'to', newStatus);
+    
+    const result = await db.collection("challenges").findOneAndUpdate(
+      { _id: new ObjectId(challengeId) },
+      { $set: { status: newStatus } },
+      { returnDocument: 'after' }
+    );
+
+    if (newStatus === 'active' && result.value) {
+      console.log('Challenge activated, sending notification');
+      try {
+        notifyNewChallenge(result.value);
+        console.log('Notification sent successfully');
+      } catch (error) {
+        console.error('Error sending notification:', error);
+      }
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      status: newStatus,
+      challenge: result.value 
+    });
   } catch (error) {
     console.error("Error updating challenge status:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to update challenge status" },
+      { success: false, error: error.message },
       { status: 500 }
     );
   }

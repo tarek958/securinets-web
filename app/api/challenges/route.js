@@ -224,8 +224,8 @@ export async function POST(request) {
       }
     }
 
-    // Create challenge data object
-    const challengeData = {
+    // Create the challenge document
+    const challengeDoc = {
       title: formData.get('title'),
       description: formData.get('description'),
       category: formData.get('category'),
@@ -233,47 +233,42 @@ export async function POST(request) {
       points: parseInt(formData.get('points')),
       flag: formData.get('flag'),
       createdAt: new Date(),
-      status: formData.get('status') || 'active',
+      status: 'active',
       createdBy: authResult.user._id,
-      files: challengeFiles // Store file information
+      files: challengeFiles
     };
 
     // Validate required fields
-    if (!challengeData.title || !challengeData.description || !challengeData.flag || 
-        !challengeData.category || !challengeData.difficulty || !challengeData.points) {
+    if (!challengeDoc.title || !challengeDoc.description || !challengeDoc.flag || 
+        !challengeDoc.category || !challengeDoc.difficulty || !challengeDoc.points) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    const result = await db.collection('challenges').insertOne(challengeData);
-    
-    if (!result.acknowledged) {
-      throw new Error('Failed to create challenge');
-    }
+    // Insert the challenge
+    const result = await db.collection('challenges').insertOne(challengeDoc);
 
-    // Clear the cache when a new challenge is added
-    if (db.redis) {
-      const keys = await db.redis.keys('challenges_all_*');
-      if (keys.length > 0) {
-        await db.redis.del(keys);
-      }
-    }
-
-    // Notify connected clients
-    const io = getIO();
+    // Emit socket event for new challenge
+    const io = request.socket.server.io;
     if (io) {
-      io.emit('challengeCreated', { 
-        challengeId: result.insertedId,
-        status: challengeData.status 
-      });
+      const challengeNotification = {
+        _id: result.insertedId,
+        title: challengeDoc.title,
+        category: challengeDoc.category,
+        points: challengeDoc.points
+      };
+      io.emit('newChallenge', challengeNotification);
     }
+
+    // Clear the cache
+    await db.redis?.del('challenges_all_*');
 
     return NextResponse.json({ 
+      success: true,
       message: 'Challenge created successfully',
-      challengeId: result.insertedId,
-      files: challengeFiles
+      challengeId: result.insertedId
     });
 
   } catch (error) {

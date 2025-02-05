@@ -1,38 +1,46 @@
 import { Server as SocketServer } from 'socket.io';
 import { NextResponse } from 'next/server';
 
-let io;
-
-if (!global.io) {
-  io = new SocketServer({
-    cors: {
-      origin: '*',
-      methods: ['GET', 'POST'],
-      credentials: true,
-    },
-    path: '/api/socket'
-  });
-  global.io = io;
-} else {
-  io = global.io;
-}
+const io = new SocketServer({
+  cors: {
+    origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+  path: '/api/socket'
+});
 
 export async function GET(req) {
-  if (!io) {
-    return NextResponse.json(
-      { error: 'Socket server not initialized' },
-      { status: 500 }
-    );
+  if (req.socket.server.io) {
+    console.log('Socket is already running')
+  } else {
+    console.log('Socket is initializing')
+    req.socket.server.io = io
   }
+  
+  const socketServer = req.socket.server.io
+  
+  socketServer.on('connection', socket => {
+    console.log('Client connected:', socket.id)
+    
+    socket.on('disconnect', () => {
+      console.log('Client disconnected:', socket.id)
+    })
 
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,POST',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+    // Handle challenge notifications
+    socket.on('newChallenge', (challenge) => {
+      console.log('New challenge notification:', challenge)
+      socketServer.emit('newChallenge', challenge)
+    })
+  })
+
+  return new NextResponse('Socket initialized', { status: 200 })
+}
+
+export const config = {
+  api: {
+    bodyParser: false
+  }
 }
 
 // Export the io instance

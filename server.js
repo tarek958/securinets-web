@@ -22,11 +22,12 @@ app.prepare().then(() => {
     }
   });
 
-  // Initialize Socket.IO
+  // Initialize Socket.IO with the server
   initSocket(server);
 
   server.listen(port, (err) => {
     if (err) throw err;
     console.log(`> Ready on http://${hostname}:${port}`);
+    console.log('WebSocket server is running');
   });
 });
