@@ -51,7 +51,7 @@ const ChallengeNotification = () => {
         timestamp: new Date().toISOString()
       });
       
-      toast.error('Failed to connect to notification service');
+      
     });
 
     // Handle general socket errors
